@@ -1,0 +1,47 @@
+[
+  {
+    "code": "urgent",
+    "labelRu": "Срочно / ближайшие даты",
+    "descriptionRu": "Приоритетный мониторинг ближайших окон. Доступность не гарантируется.",
+    "targetWindowDaysMin": 0,
+    "targetWindowDaysMax": 7,
+    "priceRub": 19900,
+    "priority": 100
+  },
+  {
+    "code": "two_weeks",
+    "labelRu": "До 2 недель",
+    "descriptionRu": "Поиск записи в ближайшие две недели.",
+    "targetWindowDaysMin": 1,
+    "targetWindowDaysMax": 14,
+    "priceRub": 14900,
+    "priority": 80
+  },
+  {
+    "code": "two_weeks_to_month",
+    "labelRu": "От 2 недель до 1 месяца",
+    "descriptionRu": "Стандартный поиск записи в течение месяца.",
+    "targetWindowDaysMin": 14,
+    "targetWindowDaysMax": 30,
+    "priceRub": 9900,
+    "priority": 60
+  },
+  {
+    "code": "one_to_two_months",
+    "labelRu": "От 1 до 2 месяцев",
+    "descriptionRu": "Плановая запись без срочного мониторинга.",
+    "targetWindowDaysMin": 30,
+    "targetWindowDaysMax": 60,
+    "priceRub": 6900,
+    "priority": 40
+  },
+  {
+    "code": "flexible",
+    "labelRu": "Дальше 2 месяцев / гибко",
+    "descriptionRu": "Гибкая подача без срочности.",
+    "targetWindowDaysMin": 60,
+    "targetWindowDaysMax": null,
+    "priceRub": 4900,
+    "priority": 20
+  }
+]
