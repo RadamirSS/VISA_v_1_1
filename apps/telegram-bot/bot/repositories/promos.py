@@ -32,3 +32,32 @@ class PromoRepository:
                 payload,
             )
             connection.commit()
+
+    def get_by_code(self, code: str) -> PromoCode | None:
+        normalized = code.strip().upper()
+        with self._connect() as connection:
+            connection.row_factory = sqlite3.Row
+            row = connection.execute("SELECT * FROM promo_codes WHERE UPPER(code) = ?", (normalized,)).fetchone()
+        if row is None:
+            return None
+        return PromoCode(
+            id=row["id"],
+            code=row["code"],
+            type=row["type"],
+            value=row["value"],
+            max_uses=row["max_uses"],
+            used_count=row["used_count"],
+            active=bool(row["active"]),
+            expires_at=row["expires_at"],
+            created_by_admin_id=row["created_by_admin_id"],
+            created_at=row["created_at"],
+            country_codes=json.loads(row["country_codes"]) if row["country_codes"] else [],
+            time_window_codes=json.loads(row["time_window_codes"]) if row["time_window_codes"] else [],
+            note=row["note"],
+        )
+
+    def increment_used_count(self, code: str) -> None:
+        normalized = code.strip().upper()
+        with self._connect() as connection:
+            connection.execute("UPDATE promo_codes SET used_count = used_count + 1 WHERE UPPER(code) = ?", (normalized,))
+            connection.commit()

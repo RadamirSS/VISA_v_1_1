@@ -9,7 +9,7 @@ const points = [
 
 export default function SchengenPage() {
   return (
-    <Section eyebrow="Schengen" title="Поддержка по шенгенскому кейсу" description="Этот сайт нужен для первичного контакта и старта кейса. Детальная рабочая часть по записи ведется через отдельный Telegram-бот и менеджера.">
+    <Section eyebrow="Schengen" title="Поддержка по шенгенскому кейсу" description="Этот сайт нужен для первичного контакта и старта кейса. После заявки менеджер помогает понять маршрут подачи и подготовительные шаги.">
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <h3 className="font-display text-2xl text-[var(--ink)]">Что делает команда</h3>

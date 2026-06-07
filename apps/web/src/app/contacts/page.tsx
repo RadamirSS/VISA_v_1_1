@@ -14,7 +14,7 @@ export default function ContactsPage() {
         </Card>
         <Card>
           <p className="font-medium text-[var(--ink)]">Формат</p>
-          <p className="mt-3 text-[var(--muted)]">Онлайн-консультация и дальнейшее сопровождение через менеджера и Telegram-бот</p>
+          <p className="mt-3 text-[var(--muted)]">Онлайн-консультация и дальнейшее сопровождение через менеджера после первичной заявки</p>
         </Card>
       </div>
     </Section>

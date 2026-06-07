@@ -25,3 +25,4 @@ def test_create_order_generates_public_number():
     )
     assert order.public_number.endswith("000123")
     assert order.total_price_rub == 16400
+    assert order.manager_note is None

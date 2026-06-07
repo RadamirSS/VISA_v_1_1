@@ -8,3 +8,4 @@ tsconfig.tsbuildinfo
 __pycache__
 *.pyc
 apps/telegram-bot/visa_bot.db
+apps/web/storage/*.jsonl

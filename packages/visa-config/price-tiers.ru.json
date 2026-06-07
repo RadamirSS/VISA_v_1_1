@@ -6,6 +6,7 @@
     "targetWindowDaysMin": 0,
     "targetWindowDaysMax": 7,
     "priceRub": 19900,
+    "additionalApplicantPriceRub": 1500,
     "priority": 100
   },
   {
@@ -15,6 +16,7 @@
     "targetWindowDaysMin": 1,
     "targetWindowDaysMax": 14,
     "priceRub": 14900,
+    "additionalApplicantPriceRub": 1500,
     "priority": 80
   },
   {
@@ -24,6 +26,7 @@
     "targetWindowDaysMin": 14,
     "targetWindowDaysMax": 30,
     "priceRub": 9900,
+    "additionalApplicantPriceRub": 1500,
     "priority": 60
   },
   {
@@ -33,6 +36,7 @@
     "targetWindowDaysMin": 30,
     "targetWindowDaysMax": 60,
     "priceRub": 6900,
+    "additionalApplicantPriceRub": 1500,
     "priority": 40
   },
   {
@@ -42,6 +46,7 @@
     "targetWindowDaysMin": 60,
     "targetWindowDaysMax": null,
     "priceRub": 4900,
+    "additionalApplicantPriceRub": 1500,
     "priority": 20
   }
 ]

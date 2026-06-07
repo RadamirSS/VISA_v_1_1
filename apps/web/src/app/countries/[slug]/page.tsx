@@ -17,7 +17,7 @@ export default function CountryDetailPage({ params }: { params: Params }) {
   }
 
   return (
-    <Section eyebrow="Country detail" title={`${country.nameRu}: краткий ориентир по направлению`} description={country.suitsForRu}>
+    <Section eyebrow="Страна подачи" title={`${country.nameRu}: краткий ориентир по направлению`} description={country.suitsForRu}>
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <h3 className="font-display text-2xl text-[var(--ink)]">Для кого может подойти</h3>
@@ -32,7 +32,7 @@ export default function CountryDetailPage({ params }: { params: Params }) {
           </ul>
         </Card>
         <Card>
-          <h3 className="font-display text-2xl text-[var(--ink)]">На что обычно обращают внимание при подготовке</h3>
+          <h3 className="font-display text-2xl text-[var(--ink)]">Что помогает подготовить агентство</h3>
           <ul className="mt-4 space-y-3 text-[var(--muted)]">
             {country.preparationAreasRu.map((area) => (
               <li key={area}>{area}</li>
@@ -41,13 +41,14 @@ export default function CountryDetailPage({ params }: { params: Params }) {
         </Card>
         <Card>
           <h3 className="font-display text-2xl text-[var(--ink)]">Важно знать</h3>
+          <p className="mt-4 text-[var(--muted)]">Мы помогаем подготовить заявку и маршрут подачи.</p>
           <p className="mt-4 text-[var(--muted)]">{country.appointmentNoteRu}</p>
           <p className="mt-4 text-[var(--muted)]">{country.processingDisclaimerRu}</p>
           <p className="mt-4 text-[var(--muted)]">{country.providerDisclaimerRu}</p>
         </Card>
       </div>
       <div className="mt-8 flex flex-wrap gap-3">
-        <Link href="/apply" className="rounded-full bg-[var(--accent)] px-5 py-3 text-sm font-medium text-white">
+        <Link href={`/apply?country=${country.slug}`} className="rounded-full bg-[var(--accent)] px-5 py-3 text-sm font-medium text-white">
           Оставить заявку
         </Link>
         <Link href="/apply?country=consultation" className="rounded-full border border-[var(--line)] px-5 py-3 text-sm font-medium text-[var(--ink)]">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/primitives";
 
 type AdditionalApplicant = {
@@ -50,12 +50,18 @@ const initialState: FormState = {
   consent: false
 };
 
-export function ApplyForm() {
+export function ApplyForm({ initialDesiredCountry }: { initialDesiredCountry?: string }) {
   const [form, setForm] = useState<FormState>(initialState);
   const [status, setStatus] = useState<"idle" | "loading" | "success">("idle");
   const [error, setError] = useState("");
 
   const additionalCount = useMemo(() => Math.max(form.applicantsCount - 1, 0), [form.applicantsCount]);
+
+  useEffect(() => {
+    if (initialDesiredCountry && countryOptions.includes(initialDesiredCountry)) {
+      setForm((current) => ({ ...current, desiredCountry: initialDesiredCountry }));
+    }
+  }, [initialDesiredCountry]);
 
   const syncApplicants = (count: number) => {
     setForm((current) => {
@@ -150,7 +156,7 @@ export function ApplyForm() {
         <p className="text-sm uppercase tracking-[0.24em] text-[var(--accent)]">Заявка принята</p>
         <h3 className="font-display text-3xl text-[var(--ink)]">Спасибо, мы получили ваш запрос</h3>
         <p className="text-[var(--muted)]">
-          Менеджер свяжется с вами по указанным контактам после первичной проверки информации.
+          Сначала мы сохраняем заявку на сервере, затем менеджер связывается с вами по указанным контактам для первичной консультации.
         </p>
       </Card>
     );
@@ -158,6 +164,15 @@ export function ApplyForm() {
 
   return (
     <Card className="space-y-6">
+      <div className="rounded-[24px] bg-[var(--surface)] p-4 text-sm text-[var(--muted)]">
+        Укажите только базовую информацию для связи и первичной консультации. Паспортные данные, загрузка документов и платежные сведения на сайте не нужны.
+      </div>
+
+      <div className="space-y-4">
+        <div>
+          <p className="font-display text-2xl text-[var(--ink)]">Основной заявитель</p>
+          <p className="mt-2 text-sm text-[var(--muted)]">Эти поля помогают менеджеру понять кейс и связаться с вами без лишнего запроса данных.</p>
+        </div>
       <div className="grid gap-4 md:grid-cols-2">
         <Field label="Фамилия" value={form.lastName} onChange={(value) => setForm((current) => ({ ...current, lastName: value }))} />
         <Field label="Имя" value={form.firstName} onChange={(value) => setForm((current) => ({ ...current, firstName: value }))} />
@@ -165,7 +180,15 @@ export function ApplyForm() {
         <Field label="Дата рождения или год рождения" value={form.birthDateOrYear} onChange={(value) => setForm((current) => ({ ...current, birthDateOrYear: value }))} />
         <Field label="Гражданство" value={form.citizenship} onChange={(value) => setForm((current) => ({ ...current, citizenship: value }))} />
         <Field label="Текущий город / страна" value={form.currentLocation} onChange={(value) => setForm((current) => ({ ...current, currentLocation: value }))} />
+      </div>
+      </div>
 
+      <div className="space-y-4">
+        <div>
+          <p className="font-display text-2xl text-[var(--ink)]">Направление визы</p>
+          <p className="mt-2 text-sm text-[var(--muted)]">Если страна или цель пока не определены, можно выбрать вариант с консультацией.</p>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
         <SelectField label="Желаемая страна Шенгена" value={form.desiredCountry} options={countryOptions} onChange={(value) => setForm((current) => ({ ...current, desiredCountry: value }))} />
         <SelectField label="Цель поездки" value={form.travelPurpose} options={purposeOptions} onChange={(value) => setForm((current) => ({ ...current, travelPurpose: value }))} />
         <Field label="Примерный месяц поездки" value={form.approximateTravelMonth} onChange={(value) => setForm((current) => ({ ...current, approximateTravelMonth: value }))} />
@@ -176,10 +199,11 @@ export function ApplyForm() {
           onChange={(value) => syncApplicants(Number(value))}
         />
       </div>
+      </div>
 
       {additionalCount > 0 ? (
         <div className="space-y-4">
-          <p className="font-medium text-[var(--ink)]">Дополнительные заявители</p>
+          <p className="font-display text-2xl text-[var(--ink)]">Дополнительные заявители</p>
           {form.additionalApplicants.map((item, index) => (
             <div key={index} className="grid gap-4 rounded-[24px] bg-[var(--surface)] p-4 md:grid-cols-3">
               <Field label="ФИО" value={item.fullName} onChange={(value) => updateApplicant(index, "fullName", value)} />
@@ -190,10 +214,16 @@ export function ApplyForm() {
         </div>
       ) : null}
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <Field label="Telegram username" value={form.telegram} onChange={(value) => setForm((current) => ({ ...current, telegram: value }))} />
-        <Field label="Телефон" value={form.phone} onChange={(value) => setForm((current) => ({ ...current, phone: value }))} />
-        <Field label="Email" value={form.email} onChange={(value) => setForm((current) => ({ ...current, email: value }))} />
+      <div className="space-y-4">
+        <div>
+          <p className="font-display text-2xl text-[var(--ink)]">Контакты</p>
+          <p className="mt-2 text-sm text-[var(--muted)]">Нужен хотя бы один способ связи: Telegram, телефон или email.</p>
+        </div>
+        <div className="grid gap-4 md:grid-cols-3">
+          <Field label="Telegram username" value={form.telegram} onChange={(value) => setForm((current) => ({ ...current, telegram: value }))} />
+          <Field label="Телефон" value={form.phone} onChange={(value) => setForm((current) => ({ ...current, phone: value }))} />
+          <Field label="Email" value={form.email} onChange={(value) => setForm((current) => ({ ...current, email: value }))} />
+        </div>
       </div>
 
       <label>

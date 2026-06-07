@@ -35,3 +35,10 @@ def test_expired_promo_rejected():
     promo = make_promo(expires_at=(datetime.now(UTC) - timedelta(days=1)).isoformat())
     result = validate_promo(promo, 10000, "IT", "two_weeks")
     assert result.valid is False
+
+
+def test_cash_paid_promo_changes_payment_status():
+    promo = make_promo(type=PromoCodeType.CASH_PAID, value=0)
+    result = validate_promo(promo, 10000, "IT", "two_weeks")
+    assert result.valid is True
+    assert result.payment_status == "paid_offline"

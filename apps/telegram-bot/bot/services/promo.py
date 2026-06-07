@@ -13,6 +13,7 @@ class PromoResult:
     normalized_code: str
     discount_rub: int = 0
     payment_status: Optional[str] = None
+    promo_type: Optional[str] = None
     error: Optional[str] = None
 
 
@@ -36,13 +37,13 @@ def validate_promo(promo: PromoCode, price_rub: int, country_code: str, time_win
         return PromoResult(valid=False, normalized_code=normalized, error="Промокод не подходит для выбранного окна поиска.")
 
     if promo.type == PromoCodeType.FULL_DISCOUNT:
-        return PromoResult(valid=True, normalized_code=normalized, discount_rub=price_rub, payment_status="paid")
+        return PromoResult(valid=True, normalized_code=normalized, discount_rub=price_rub, payment_status="paid", promo_type=promo.type)
     if promo.type == PromoCodeType.CASH_PAID:
-        return PromoResult(valid=True, normalized_code=normalized, discount_rub=price_rub, payment_status="paid_offline")
+        return PromoResult(valid=True, normalized_code=normalized, discount_rub=price_rub, payment_status="paid_offline", promo_type=promo.type)
     if promo.type == PromoCodeType.PERCENT_DISCOUNT:
         discount = int(price_rub * (promo.value / 100))
-        return PromoResult(valid=True, normalized_code=normalized, discount_rub=discount)
+        return PromoResult(valid=True, normalized_code=normalized, discount_rub=discount, promo_type=promo.type)
     if promo.type == PromoCodeType.FIXED_DISCOUNT:
-        return PromoResult(valid=True, normalized_code=normalized, discount_rub=min(price_rub, promo.value))
+        return PromoResult(valid=True, normalized_code=normalized, discount_rub=min(price_rub, promo.value), promo_type=promo.type)
 
-    return PromoResult(valid=True, normalized_code=normalized, discount_rub=0)
+    return PromoResult(valid=True, normalized_code=normalized, discount_rub=0, promo_type=promo.type)

@@ -11,6 +11,10 @@ CREATE TABLE IF NOT EXISTS users (
   username TEXT,
   first_name TEXT,
   last_name TEXT,
+  patronymic TEXT,
+  birth_date TEXT,
+  citizenship TEXT,
+  current_location TEXT,
   phone TEXT,
   email TEXT,
   consent_accepted_at TEXT,
@@ -41,6 +45,30 @@ CREATE TABLE IF NOT EXISTS orders (
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS applicants (
+  id TEXT PRIMARY KEY,
+  order_id TEXT NOT NULL,
+  last_name TEXT NOT NULL,
+  first_name TEXT NOT NULL,
+  patronymic TEXT,
+  birth_date TEXT NOT NULL,
+  citizenship TEXT NOT NULL,
+  current_location TEXT,
+  relationship TEXT,
+  passport_number_encrypted TEXT,
+  passport_expiry_date TEXT
+);
+CREATE TABLE IF NOT EXISTS payments (
+  id TEXT PRIMARY KEY,
+  order_id TEXT NOT NULL,
+  provider TEXT NOT NULL,
+  provider_payment_id TEXT,
+  amount_rub INTEGER NOT NULL,
+  status TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  paid_at TEXT
+);
 CREATE TABLE IF NOT EXISTS promo_codes (
   id TEXT PRIMARY KEY,
   code TEXT NOT NULL UNIQUE,
@@ -55,6 +83,17 @@ CREATE TABLE IF NOT EXISTS promo_codes (
   country_codes TEXT,
   time_window_codes TEXT,
   note TEXT
+);
+CREATE TABLE IF NOT EXISTS audit_log (
+  id TEXT PRIMARY KEY,
+  actor_type TEXT NOT NULL,
+  actor_id TEXT,
+  entity_type TEXT NOT NULL,
+  entity_id TEXT NOT NULL,
+  action TEXT NOT NULL,
+  before TEXT,
+  after TEXT,
+  created_at TEXT NOT NULL
 );
 """
 

@@ -18,6 +18,7 @@ class Settings:
     enable_sensitive_fields: bool
     default_currency: str
     root_dir: Path
+    repo_root: Path
 
 
 def parse_admin_ids(raw: str) -> List[int]:
@@ -32,6 +33,7 @@ def parse_bool(raw: str | None, default: bool = False) -> bool:
 
 def get_settings() -> Settings:
     root_dir = Path(__file__).resolve().parents[1]
+    repo_root = Path(__file__).resolve().parents[3]
     return Settings(
         bot_token=os.getenv("BOT_TOKEN", ""),
         bot_admin_ids=parse_admin_ids(os.getenv("BOT_ADMIN_IDS", "")),
@@ -43,4 +45,5 @@ def get_settings() -> Settings:
         enable_sensitive_fields=parse_bool(os.getenv("ENABLE_SENSITIVE_FIELDS"), False),
         default_currency=os.getenv("DEFAULT_CURRENCY", "RUB"),
         root_dir=root_dir,
+        repo_root=repo_root,
     )

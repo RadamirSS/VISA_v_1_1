@@ -27,6 +27,7 @@ class OrderStatus(StrEnum):
     DRAFT = "draft"
     AWAITING_PAYMENT = "awaiting_payment"
     AWAITING_MANAGER_CASH_CONFIRMATION = "awaiting_manager_cash_confirmation"
+    REQUIRES_MANAGER_REVIEW = "requires_manager_review"
     PAID_WAITING_BOOKING = "paid_waiting_booking"
     SENT_TO_BOOKING_PROVIDER = "sent_to_booking_provider"
     SLOT_FOUND = "slot_found"
@@ -45,6 +46,10 @@ class User:
     username: Optional[str] = None
     first_name: Optional[str] = None
     last_name: Optional[str] = None
+    patronymic: Optional[str] = None
+    birth_date: Optional[str] = None
+    citizenship: Optional[str] = None
+    current_location: Optional[str] = None
     phone: Optional[str] = None
     email: Optional[str] = None
     consent_accepted_at: Optional[str] = None
@@ -102,6 +107,7 @@ class Payment:
     status: str
     provider_payment_id: Optional[str] = None
     created_at: str = ""
+    updated_at: str = ""
     paid_at: Optional[str] = None
 
 
@@ -133,3 +139,30 @@ class AuditLog:
     actor_id: Optional[str] = None
     before: Optional[str] = None
     after: Optional[str] = None
+
+
+@dataclass(slots=True)
+class CountryOption:
+    code: str
+    slug: str
+    name_ru: str
+    suits_for_ru: str
+
+
+@dataclass(slots=True)
+class ConsulateOption:
+    country_code: str
+    country_name_ru: str
+    city: str
+    provider: str
+    verification_status: str
+
+
+@dataclass(slots=True)
+class PriceTier:
+    code: str
+    label_ru: str
+    description_ru: str
+    price_rub: int
+    priority: int
+    additional_applicant_price_rub: int

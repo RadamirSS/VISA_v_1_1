@@ -22,3 +22,10 @@ def admin_menu_keyboard() -> ReplyKeyboardMarkup:
         ],
         resize_keyboard=True,
     )
+
+
+def simple_keyboard(*rows: list[str]) -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text=item) for item in row] for row in rows],
+        resize_keyboard=True,
+    )

@@ -24,3 +24,12 @@ def calculate_total(base_price_rub: int, applicants_count: int, additional_appli
         total_price_rub=total,
         requires_manager_review=applicants_count > max_applicants_before_manual_review,
     )
+
+
+def render_price_summary(base_price_rub: int, additional_price_rub: int, discount_rub: int, total_price_rub: int) -> str:
+    return (
+        f"Базовый тариф: {base_price_rub} ₽\n"
+        f"Доп. заявители: {additional_price_rub} ₽\n"
+        f"Скидка: {discount_rub} ₽\n"
+        f"Итого: {total_price_rub} ₽"
+    )
