@@ -24,6 +24,14 @@ Home dashboard cards:
 7. **Manager hint** — legal-safe copy, no guarantees
 8. **Timeline preview** — 4–6 steps around current stage, link to `/status`
 
+## Manager-set statuses in client timeline
+
+When a manager updates a Mini App case status from the Telegram bot workspace, the client sees the corresponding Russian label in the cabinet and timeline (`case_status_label` on backend). No Mini App UI redesign is required — labels come from `bot/services/case_status.py`.
+
+Examples: «Менеджер проверяет данные», «Требуются уточнения», «Менеджер подбирает даты», «Запись подтверждена».
+
+Manager operations: [MANAGER_OPERATIONS_FLOW.md](MANAGER_OPERATIONS_FLOW.md)
+
 ## Timeline states
 
 | State | UI meaning |

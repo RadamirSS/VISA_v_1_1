@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import sqlite3
 from dataclasses import asdict
 from datetime import UTC, datetime
@@ -21,6 +22,7 @@ from bot.models import (
     VisaCase,
     VisaCaseStatus,
 )
+from bot.services.case_status import format_case_public_number
 from bot.services.config_loader import load_consulates, load_countries
 from bot.services.slot_offers import ParsedSlotOption
 
@@ -68,6 +70,22 @@ SLOT_ELIGIBLE_CASE_STATUSES = {
     VisaCaseStatus.READY_FOR_SLOT_SEARCH.value,
     VisaCaseStatus.NEEDS_MANAGER_CONSULTATION.value,
 }
+MANAGER_QUEUE_STATUSES = (
+    VisaCaseStatus.SUBMITTED_FOR_MANAGER_REVIEW.value,
+    VisaCaseStatus.NEEDS_MANAGER_CONSULTATION.value,
+    VisaCaseStatus.WAITING_MANAGER_REVIEW.value,
+    VisaCaseStatus.NEEDS_CLARIFICATION.value,
+    VisaCaseStatus.MANAGER_REVIEWING.value,
+    VisaCaseStatus.READY_FOR_SLOT_SEARCH.value,
+    VisaCaseStatus.SLOT_OPTIONS_SENT.value,
+    VisaCaseStatus.SLOT_SELECTED_BY_CLIENT.value,
+    VisaCaseStatus.APPOINTMENT_CONFIRMATION_PENDING.value,
+    VisaCaseStatus.APPOINTMENT_CONFIRMED.value,
+)
+UUID_PATTERN = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+    re.IGNORECASE,
+)
 
 
 def now_iso() -> str:
@@ -151,6 +169,146 @@ class MiniAppRepository:
         with self._connect() as connection:
             row = connection.execute("SELECT * FROM visa_cases WHERE id = ?", (case_id,)).fetchone()
         return self._case_from_row(row)
+
+    def get_case_manager_context(self, case_id: str) -> tuple[VisaCase | None, str | None]:
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT visa_cases.*, users.username AS username
+                FROM visa_cases
+                LEFT JOIN users ON users.id = visa_cases.user_id
+                WHERE visa_cases.id = ?
+                """,
+                (case_id,),
+            ).fetchone()
+        if row is None:
+            return None, None
+        username = row["username"]
+        return self._case_from_row(row), username
+
+    def list_applicants_for_case(self, case_id: str) -> list[ApplicantProfile]:
+        visa_case = self.get_case_by_any_id(case_id)
+        if visa_case is None:
+            return []
+        return self.list_applicants(visa_case.telegram_id)
+
+    def list_manager_active_cases(self, limit: int = 200) -> list[VisaCase]:
+        placeholders = ", ".join("?" for _ in MANAGER_QUEUE_STATUSES)
+        with self._connect() as connection:
+            rows = connection.execute(
+                f"""
+                SELECT * FROM visa_cases
+                WHERE status IN ({placeholders})
+                ORDER BY COALESCE(submitted_at, updated_at) DESC
+                LIMIT ?
+                """,
+                (*MANAGER_QUEUE_STATUSES, limit),
+            ).fetchall()
+        return [self._case_from_row(row) for row in rows if row is not None]
+
+    def list_manager_active_cases_with_username(self, limit: int = 200) -> list[tuple[VisaCase, str | None]]:
+        placeholders = ", ".join("?" for _ in MANAGER_QUEUE_STATUSES)
+        with self._connect() as connection:
+            rows = connection.execute(
+                f"""
+                SELECT visa_cases.*, users.username AS username
+                FROM visa_cases
+                LEFT JOIN users ON users.id = visa_cases.user_id
+                WHERE visa_cases.status IN ({placeholders})
+                ORDER BY COALESCE(visa_cases.submitted_at, visa_cases.updated_at) DESC
+                LIMIT ?
+                """,
+                (*MANAGER_QUEUE_STATUSES, limit),
+            ).fetchall()
+        result: list[tuple[VisaCase, str | None]] = []
+        for row in rows:
+            visa_case = self._case_from_row(row)
+            if visa_case is not None:
+                result.append((visa_case, row["username"]))
+        return result
+
+    def get_case_by_public_number(self, public_number: str) -> VisaCase | None:
+        normalized = public_number.strip().upper()
+        if not normalized.startswith("VISA-CASE-"):
+            return None
+        with self._connect() as connection:
+            rows = connection.execute("SELECT * FROM visa_cases ORDER BY created_at DESC").fetchall()
+        for row in rows:
+            visa_case = self._case_from_row(row)
+            if visa_case is not None and format_case_public_number(visa_case).upper() == normalized:
+                return visa_case
+        return None
+
+    def get_case_by_telegram_id_for_manager(self, telegram_id: int) -> VisaCase | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT * FROM visa_cases
+                WHERE telegram_id = ?
+                ORDER BY COALESCE(submitted_at, updated_at) DESC
+                LIMIT 1
+                """,
+                (telegram_id,),
+            ).fetchone()
+        return self._case_from_row(row)
+
+    def get_case_by_username(self, username: str) -> VisaCase | None:
+        normalized = username.strip().lstrip("@").lower()
+        if not normalized:
+            return None
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT visa_cases.*
+                FROM visa_cases
+                JOIN users ON users.id = visa_cases.user_id
+                WHERE LOWER(users.username) = ?
+                ORDER BY COALESCE(visa_cases.submitted_at, visa_cases.updated_at) DESC
+                LIMIT 1
+                """,
+                (normalized,),
+            ).fetchone()
+        return self._case_from_row(row)
+
+    def resolve_case_lookup(self, query: str) -> VisaCase | None:
+        raw = query.strip()
+        if not raw:
+            return None
+        upper = raw.upper()
+        if upper.startswith("VISA-CASE-"):
+            return self.get_case_by_public_number(upper)
+        if UUID_PATTERN.match(raw):
+            return self.get_case_by_any_id(raw)
+        if raw.isdigit():
+            return self.get_case_by_telegram_id_for_manager(int(raw))
+        if raw.startswith("@"):
+            return self.get_case_by_username(raw)
+        if re.fullmatch(r"[A-Za-z0-9_]{3,32}", raw):
+            return self.get_case_by_username(raw)
+        return self.get_case_by_any_id(raw)
+
+    def has_slot_offers(self, case_id: str) -> bool:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT 1 FROM appointment_slot_offers WHERE case_id = ? LIMIT 1",
+                (case_id,),
+            ).fetchone()
+        return row is not None
+
+    def has_selected_slot(self, visa_case: VisaCase) -> bool:
+        return bool(visa_case.selected_slot_option_id or visa_case.selected_appointment_date)
+
+    def update_manager_case_status(self, case_id: str, status: str, admin_id: int) -> VisaCase:
+        del admin_id
+        visa_case = self.get_case_by_any_id(case_id)
+        if visa_case is None:
+            raise ValueError("Кейс не найден.")
+        visa_case.status = status
+        visa_case.updated_at = now_iso()
+        if status == VisaCaseStatus.MANAGER_REVIEWING.value and not visa_case.manager_reviewed_at:
+            visa_case.manager_reviewed_at = visa_case.updated_at
+        self.save_case(visa_case)
+        return visa_case
 
     def ensure_case(self, user: User, access_key_id: str | None, access_key_code: str | None) -> VisaCase:
         existing = self.get_case_for_telegram_user(user.telegram_id)

@@ -50,9 +50,11 @@ Statuses:
 
 ## Manager flow (Telegram bot)
 
-Menu action: **📎 Документы по заявке**
+**Shortcut from case workspace:** open a case from `📥 Новые заявки` or `🔎 Найти заявку`, then tap **📎 Документы** — case ID is pre-filled, no re-entry needed.
 
-1. Enter case ID.
+**Standalone menu:** **📎 Документы по заявке**
+
+1. Enter case ID (skipped when opened from workspace).
 2. Choose action:
    - show documents for case
    - request client document from template

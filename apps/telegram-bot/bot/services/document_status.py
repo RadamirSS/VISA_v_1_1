@@ -100,6 +100,7 @@ def should_notify_client_for_agency_status(status: str, *, has_file: bool) -> bo
 
 def build_document_summary_counts(items: list[DocumentItem]) -> dict[str, int | bool]:
     client_pending = 0
+    client_under_review = 0
     client_uploaded = 0
     agency_in_progress = 0
     agency_ready = 0
@@ -111,10 +112,10 @@ def build_document_summary_counts(items: list[DocumentItem]) -> dict[str, int | 
         if item.source_type == DocumentSourceType.CLIENT_REQUIRED.value:
             if item.status == ClientDocumentStatus.REQUESTED.value:
                 client_pending += 1
-            elif item.status in {
-                ClientDocumentStatus.UPLOADED_BY_CLIENT.value,
-                ClientDocumentStatus.RECEIVED_BY_MANAGER.value,
-            }:
+            elif item.status == ClientDocumentStatus.UPLOADED_BY_CLIENT.value:
+                client_under_review += 1
+                client_uploaded += 1
+            elif item.status == ClientDocumentStatus.RECEIVED_BY_MANAGER.value:
                 client_uploaded += 1
         elif item.source_type == DocumentSourceType.AGENCY_PREPARED.value:
             if item.status in {
@@ -133,6 +134,7 @@ def build_document_summary_counts(items: list[DocumentItem]) -> dict[str, int | 
     return {
         "has_items": bool(visible_items),
         "client_pending": client_pending,
+        "client_under_review": client_under_review,
         "client_uploaded": client_uploaded,
         "agency_in_progress": agency_in_progress,
         "agency_ready": agency_ready,

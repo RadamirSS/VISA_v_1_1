@@ -18,6 +18,10 @@ from bot.keyboards.inline import (
     document_client_template_keyboard,
     document_items_keyboard,
     document_status_keyboard,
+    manager_case_actions_keyboard,
+    manager_case_message_templates_keyboard,
+    manager_case_status_keyboard,
+    manager_queue_item_keyboard,
     slot_options_keyboard,
     support_request_actions_keyboard,
 )
@@ -44,6 +48,20 @@ from bot.services.access_keys import generate_access_key
 from bot.services.booking_provider import MockBookingProvider
 from bot.services.case_status import format_case_public_number
 from bot.services.document_status import document_status_label, should_notify_client_for_agency_status
+from bot.services.manager_case_actions import (
+    ManagerCaseQueueItem,
+    build_manager_queue_groups,
+    get_allowed_statuses_for_case,
+    get_case_template_text,
+    is_terminal_case_status,
+    render_manager_queue,
+    validate_status_transition,
+)
+from bot.services.manager_case_view import (
+    render_applicants_summary,
+    render_manager_case_summary,
+    render_queue_item,
+)
 from bot.services.document_storage import DocumentStorageService
 from bot.services.notifications import (
     build_agency_document_ready_message,
@@ -154,14 +172,89 @@ def _render_support_request(request) -> str:
     )
 
 
-def _render_case_summary(visa_case) -> str:
-    return (
-        f"Кейс: {visa_case.id}\n"
-        f"Клиент telegram_id: {visa_case.telegram_id}\n"
-        f"Страна: {visa_case.desired_country_name_ru or 'не выбрана'}\n"
-        f"Город: {visa_case.preferred_submission_city or 'не выбран'}\n"
-        f"Провайдер: {visa_case.submission_provider or 'не выбран'}\n"
-        f"Статус: {visa_case.status}"
+def _build_manager_queue_items() -> list[ManagerCaseQueueItem]:
+    items: list[ManagerCaseQueueItem] = []
+    for visa_case, username in miniapp_repository.list_manager_active_cases_with_username():
+        counts = document_repository.count_summary(visa_case.id)
+        items.append(
+            ManagerCaseQueueItem(
+                visa_case=visa_case,
+                username=username,
+                client_pending=int(counts.get("client_pending", 0)),
+                client_under_review=int(counts.get("client_under_review", 0)),
+            )
+        )
+    return items
+
+
+def _render_case_workspace_summary(case_id: str) -> tuple[str, bool] | None:
+    visa_case, username = miniapp_repository.get_case_manager_context(case_id)
+    if visa_case is None:
+        return None
+    applicants = miniapp_repository.list_applicants_for_case(case_id)
+    doc_counts = document_repository.count_summary(case_id)
+    summary = render_manager_case_summary(
+        visa_case,
+        username=username,
+        applicants=applicants,
+        doc_counts=doc_counts,
+    )
+    return summary, is_terminal_case_status(visa_case.status)
+
+
+async def _open_case_workspace_message(message: Message, case_id: str) -> None:
+    rendered = _render_case_workspace_summary(case_id)
+    if rendered is None:
+        await message.answer("Кейс не найден.")
+        return
+    summary, terminal = rendered
+    await message.answer(
+        summary,
+        reply_markup=manager_case_actions_keyboard(case_id, terminal=terminal),
+    )
+
+
+async def _open_case_workspace_callback(callback: CallbackQuery, case_id: str) -> None:
+    rendered = _render_case_workspace_summary(case_id)
+    if rendered is None:
+        await callback.answer("Кейс не найден.", show_alert=True)
+        return
+    summary, terminal = rendered
+    await callback.answer()
+    await callback.message.answer(
+        summary,
+        reply_markup=manager_case_actions_keyboard(case_id, terminal=terminal),
+    )
+
+
+async def _enter_document_flow(message: Message, state: FSMContext, case_id: str) -> None:
+    visa_case = miniapp_repository.get_case_by_any_id(case_id)
+    if visa_case is None:
+        await message.answer("Кейс не найден.")
+        return
+    await state.update_data(case_id=case_id, telegram_id=visa_case.telegram_id)
+    await state.set_state(AdminState.document_action)
+    await message.answer(
+        f"Кейс: {format_case_public_number(visa_case)}.\nВыберите действие с документами.",
+        reply_markup=document_actions_keyboard(),
+    )
+
+
+async def _enter_slot_flow(message: Message, state: FSMContext, case_id: str) -> None:
+    visa_case = miniapp_repository.get_case_by_any_id(case_id)
+    if visa_case is None:
+        await message.answer("Кейс не найден.")
+        return
+    await state.update_data(slot_offer_case_id=case_id)
+    await state.set_state(AdminState.slot_offer_options)
+    summary = render_manager_case_summary(
+        visa_case,
+        applicants=miniapp_repository.list_applicants_for_case(case_id),
+        doc_counts=document_repository.count_summary(case_id),
+    )
+    await message.answer(
+        summary
+        + "\n\nВведите варианты дат построчно.\nПример:\n2026-07-15 10:30\n2026-07-16 14:00 | Москва | VMS Italy | Комментарий"
     )
 
 
@@ -225,23 +318,29 @@ async def list_new_orders(message: Message) -> None:
     if not _require_admin(message):
         await _deny(message)
         return
+    queue_items = _build_manager_queue_items()
+    groups = build_manager_queue_groups(queue_items)
+    queue_text = render_manager_queue(groups)
     orders = order_repository.list_admin_queue()
-    cases = miniapp_repository.list_submitted_cases()
-    if not orders and not cases:
+    if not queue_items and not orders:
         await message.answer("В очереди нет новых заявок.")
         return
-    blocks: list[str] = []
+    await message.answer(queue_text)
+    for group in groups:
+        for item in group.items:
+            await message.answer(
+                render_queue_item(item.visa_case),
+                reply_markup=manager_queue_item_keyboard(item.visa_case.id),
+            )
     if orders:
-        blocks.extend(
-            f"{item['public_number']}\n{item['country_name_ru']} / {item['submission_city']}\n{item['payment_status']} / {item['order_status']}\n{item['created_at'][:16]}"
+        order_blocks = [
+            f"Заявка (старая система): {item['public_number']}\n"
+            f"{item['country_name_ru']} / {item['submission_city']}\n"
+            f"{item['payment_status']} / {item['order_status']}\n"
+            f"{item['created_at'][:16]}"
             for item in orders
-        )
-    if cases:
-        blocks.extend(
-            f"MINIAPP CASE {item.id}\n{item.desired_country_name_ru or 'Консультация'} / {item.preferred_submission_city or 'уточнить'}\n{item.status}\n{(item.submitted_at or item.updated_at)[:16]}"
-            for item in cases
-        )
-    await message.answer("\n\n".join(blocks))
+        ]
+        await message.answer("Старые заявки на запись:\n\n" + "\n\n".join(order_blocks))
 
 
 @router.message(F.text == "🔎 Найти заявку")
@@ -250,7 +349,14 @@ async def find_order_entry(message: Message, state: FSMContext) -> None:
         await _deny(message)
         return
     await state.set_state(AdminState.search_order)
-    await message.answer("Введите номер заявки, например VISA-2026-000123.")
+    await message.answer(
+        "Введите номер заявки или кейса:\n"
+        "• VISA-2026-000123 (старая заявка)\n"
+        "• VISA-CASE-2026-000123 (Mini App)\n"
+        "• UUID кейса\n"
+        "• telegram_id\n"
+        "• @username"
+    )
 
 
 @router.message(AdminState.search_order)
@@ -258,13 +364,24 @@ async def find_order(message: Message, state: FSMContext) -> None:
     if not _require_admin(message):
         await _deny(message)
         return
-    public_number = message.text.strip().upper()
-    details = order_repository.get_order_details(public_number)
-    if details is None:
-        await message.answer("Заявка не найдена.")
-        return
+    query = message.text.strip()
     await state.clear()
-    await message.answer(_render_order_details(details), reply_markup=admin_order_actions_keyboard(public_number))
+    if query.upper().startswith("VISA-2026-"):
+        details = order_repository.get_order_details(query.upper())
+        if details is None:
+            await message.answer("Заявка не найдена.")
+            return
+        await message.answer(_render_order_details(details), reply_markup=admin_order_actions_keyboard(query.upper()))
+        return
+    visa_case = miniapp_repository.resolve_case_lookup(query)
+    if visa_case is not None:
+        await _open_case_workspace_message(message, visa_case.id)
+        return
+    details = order_repository.get_order_details(query.upper())
+    if details is not None:
+        await message.answer(_render_order_details(details), reply_markup=admin_order_actions_keyboard(details["public_number"]))
+        return
+    await message.answer("Заявка или кейс не найдены.")
 
 
 @router.message(F.text == "✅ Подтвердить оплату наличными")
@@ -350,7 +467,11 @@ async def send_slot_dates_case_id(message: Message, state: FSMContext) -> None:
     await state.update_data(slot_offer_case_id=case_id)
     await state.set_state(AdminState.slot_offer_options)
     await message.answer(
-        _render_case_summary(visa_case)
+        render_manager_case_summary(
+            visa_case,
+            applicants=miniapp_repository.list_applicants_for_case(case_id),
+            doc_counts=document_repository.count_summary(case_id),
+        )
         + "\n\nВведите варианты дат построчно.\nПример:\n2026-07-15 10:30\n2026-07-16 14:00 | Москва | VMS Italy | Комментарий"
     )
 
@@ -1302,6 +1423,158 @@ async def admin_template_send(callback: CallbackQuery) -> None:
             await callback.answer("Запрос не найден.", show_alert=True)
             return
         await callback.message.bot.send_message(request.telegram_id, _template_text(template_code))
+    await callback.answer("Сообщение отправлено.")
+
+
+@router.callback_query(F.data == "mgrcase:back")
+async def manager_case_back(callback: CallbackQuery) -> None:
+    if not is_admin(callback.from_user.id, settings):
+        await _deny_callback(callback)
+        return
+    await callback.answer()
+    queue_items = _build_manager_queue_items()
+    groups = build_manager_queue_groups(queue_items)
+    await callback.message.answer(render_manager_queue(groups))
+
+
+@router.callback_query(F.data.startswith("mgrcase:open:"))
+async def manager_case_open(callback: CallbackQuery) -> None:
+    if not is_admin(callback.from_user.id, settings):
+        await _deny_callback(callback)
+        return
+    case_id = callback.data.split(":", 2)[2]
+    await _open_case_workspace_callback(callback, case_id)
+
+
+@router.callback_query(F.data.startswith("mgrcase:applicants:"))
+async def manager_case_applicants(callback: CallbackQuery) -> None:
+    if not is_admin(callback.from_user.id, settings):
+        await _deny_callback(callback)
+        return
+    case_id = callback.data.split(":", 2)[2]
+    applicants = miniapp_repository.list_applicants_for_case(case_id)
+    await callback.answer()
+    await callback.message.answer(render_applicants_summary(applicants))
+
+
+@router.callback_query(F.data.startswith("mgrcase:documents:"))
+async def manager_case_documents(callback: CallbackQuery, state: FSMContext) -> None:
+    if not is_admin(callback.from_user.id, settings):
+        await _deny_callback(callback)
+        return
+    case_id = callback.data.split(":", 2)[2]
+    await callback.answer()
+    await _enter_document_flow(callback.message, state, case_id)
+
+
+@router.callback_query(F.data.startswith("mgrcase:slots:"))
+async def manager_case_slots(callback: CallbackQuery, state: FSMContext) -> None:
+    if not is_admin(callback.from_user.id, settings):
+        await _deny_callback(callback)
+        return
+    case_id = callback.data.split(":", 2)[2]
+    await callback.answer()
+    await _enter_slot_flow(callback.message, state, case_id)
+
+
+@router.callback_query(F.data.startswith("mgrcase:confirm:"))
+async def manager_case_confirm(callback: CallbackQuery) -> None:
+    if not is_admin(callback.from_user.id, settings):
+        await _deny_callback(callback)
+        return
+    case_id = callback.data.split(":", 2)[2]
+    try:
+        visa_case = miniapp_repository.confirm_appointment(case_id, callback.from_user.id)
+    except ValueError as exc:
+        await callback.answer(str(exc), show_alert=True)
+        return
+    await callback.answer("Запись подтверждена.")
+    await callback.message.bot.send_message(
+        visa_case.telegram_id,
+        build_appointment_confirmed_message(
+            visa_case.selected_appointment_date,
+            visa_case.selected_appointment_time,
+            visa_case.selected_appointment_city,
+            visa_case.selected_appointment_provider,
+        ),
+    )
+    await _open_case_workspace_callback(callback, case_id)
+
+
+@router.callback_query(F.data.startswith("mgrcase:status:"))
+async def manager_case_status(callback: CallbackQuery) -> None:
+    if not is_admin(callback.from_user.id, settings):
+        await _deny_callback(callback)
+        return
+    case_id = callback.data.split(":", 2)[2]
+    visa_case = miniapp_repository.get_case_by_any_id(case_id)
+    if visa_case is None:
+        await callback.answer("Кейс не найден.", show_alert=True)
+        return
+    allowed = get_allowed_statuses_for_case(
+        visa_case,
+        has_slot_options=miniapp_repository.has_slot_offers(case_id),
+        has_selected_slot=miniapp_repository.has_selected_slot(visa_case),
+    )
+    await callback.answer()
+    await callback.message.answer(
+        "Выберите новый статус кейса:",
+        reply_markup=manager_case_status_keyboard(case_id, allowed),
+    )
+
+
+@router.callback_query(F.data.startswith("mgrcase:setstatus:"))
+async def manager_case_set_status(callback: CallbackQuery) -> None:
+    if not is_admin(callback.from_user.id, settings):
+        await _deny_callback(callback)
+        return
+    _, _, case_id, new_status = callback.data.split(":", 3)
+    visa_case = miniapp_repository.get_case_by_any_id(case_id)
+    if visa_case is None:
+        await callback.answer("Кейс не найден.", show_alert=True)
+        return
+    error = validate_status_transition(
+        visa_case,
+        new_status,
+        has_slot_options=miniapp_repository.has_slot_offers(case_id),
+        has_selected_slot=miniapp_repository.has_selected_slot(visa_case),
+    )
+    if error:
+        await callback.answer(error, show_alert=True)
+        return
+    miniapp_repository.update_manager_case_status(case_id, new_status, callback.from_user.id)
+    await callback.answer("Статус обновлен.")
+    await _open_case_workspace_callback(callback, case_id)
+
+
+@router.callback_query(F.data.startswith("mgrcase:message:"))
+async def manager_case_message(callback: CallbackQuery) -> None:
+    if not is_admin(callback.from_user.id, settings):
+        await _deny_callback(callback)
+        return
+    case_id = callback.data.split(":", 2)[2]
+    await callback.answer()
+    await callback.message.answer(
+        "Выберите шаблон сообщения клиенту.",
+        reply_markup=manager_case_message_templates_keyboard(case_id),
+    )
+
+
+@router.callback_query(F.data.startswith("mgrcase:template:"))
+async def manager_case_template_send(callback: CallbackQuery) -> None:
+    if not is_admin(callback.from_user.id, settings):
+        await _deny_callback(callback)
+        return
+    _, _, case_id, template_code = callback.data.split(":", 3)
+    visa_case, _ = miniapp_repository.get_case_manager_context(case_id)
+    if visa_case is None:
+        await callback.answer("Кейс не найден.", show_alert=True)
+        return
+    public_number = format_case_public_number(visa_case)
+    await callback.message.bot.send_message(
+        visa_case.telegram_id,
+        get_case_template_text(template_code, public_number),
+    )
     await callback.answer("Сообщение отправлено.")
 
 

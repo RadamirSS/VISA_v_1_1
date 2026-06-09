@@ -125,6 +125,60 @@ def document_items_keyboard(items: list[tuple[str, str]], prefix: str) -> Inline
     )
 
 
+def manager_queue_item_keyboard(case_id: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Открыть", callback_data=f"mgrcase:open:{case_id}")],
+        ]
+    )
+
+
+def manager_case_actions_keyboard(case_id: str, *, terminal: bool = False) -> InlineKeyboardMarkup:
+    if terminal:
+        rows = [
+            [InlineKeyboardButton(text="✉️ Сообщение клиенту", callback_data=f"mgrcase:message:{case_id}")],
+            [InlineKeyboardButton(text="↩️ Назад в очередь", callback_data="mgrcase:back")],
+        ]
+        return InlineKeyboardMarkup(inline_keyboard=rows)
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="📋 Анкеты", callback_data=f"mgrcase:applicants:{case_id}")],
+            [InlineKeyboardButton(text="📎 Документы", callback_data=f"mgrcase:documents:{case_id}")],
+            [InlineKeyboardButton(text="📅 Отправить даты", callback_data=f"mgrcase:slots:{case_id}")],
+            [InlineKeyboardButton(text="✅ Подтвердить запись", callback_data=f"mgrcase:confirm:{case_id}")],
+            [InlineKeyboardButton(text="🔄 Статус", callback_data=f"mgrcase:status:{case_id}")],
+            [InlineKeyboardButton(text="✉️ Сообщение клиенту", callback_data=f"mgrcase:message:{case_id}")],
+            [InlineKeyboardButton(text="↩️ Назад в очередь", callback_data="mgrcase:back")],
+        ]
+    )
+
+
+def manager_case_status_keyboard(case_id: str, allowed_statuses: list[tuple[str, str]]) -> InlineKeyboardMarkup:
+    rows = [
+        [InlineKeyboardButton(text=label, callback_data=f"mgrcase:setstatus:{case_id}:{value}")]
+        for value, label in allowed_statuses
+    ]
+    rows.append([InlineKeyboardButton(text="↩️ Назад к кейсу", callback_data=f"mgrcase:open:{case_id}")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def manager_case_message_templates_keyboard(case_id: str) -> InlineKeyboardMarkup:
+    from bot.services.manager_case_actions import CASE_MESSAGE_TEMPLATES
+
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text=label,
+                    callback_data=f"mgrcase:template:{case_id}:{template_code}",
+                )
+            ]
+            for label, template_code in CASE_MESSAGE_TEMPLATES
+        ]
+        + [[InlineKeyboardButton(text="↩️ Назад к кейсу", callback_data=f"mgrcase:open:{case_id}")]]
+    )
+
+
 def document_status_keyboard(source_type: str) -> InlineKeyboardMarkup:
     from bot.models import AgencyDocumentStatus, ClientDocumentStatus, DocumentSourceType
 

@@ -75,7 +75,10 @@ uvicorn bot.api.main:app --host 0.0.0.0 --port 8100
 7. Менеджер подтверждает финальную запись.
 8. Менеджер запрашивает документы; клиент видит чек-лист в Mini App (`/documents`).
 
-Подробнее: [docs/DOCUMENT_REQUEST_CHECKLIST.md](docs/DOCUMENT_REQUEST_CHECKLIST.md)
+Подробнее:
+
+- [docs/MANAGER_OPERATIONS_FLOW.md](docs/MANAGER_OPERATIONS_FLOW.md) — очередь, case workspace, статусы, шаблоны
+- [docs/DOCUMENT_REQUEST_CHECKLIST.md](docs/DOCUMENT_REQUEST_CHECKLIST.md)
 
 Проверка бота:
 
