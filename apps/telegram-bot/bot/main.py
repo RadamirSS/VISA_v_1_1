@@ -7,7 +7,7 @@ from aiogram import Bot, Dispatcher
 
 from bot.config import get_settings
 from bot.database import init_db
-from bot.handlers import admin, order, start
+from bot.handlers import admin, order, start, status
 
 
 async def main() -> None:
@@ -20,6 +20,7 @@ async def main() -> None:
     bot = Bot(token=settings.bot_token)
     dispatcher = Dispatcher()
     dispatcher.include_router(start.router)
+    dispatcher.include_router(status.router)
     dispatcher.include_router(order.router)
     dispatcher.include_router(admin.router)
 

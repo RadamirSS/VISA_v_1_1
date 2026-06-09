@@ -16,6 +16,7 @@ class Settings:
     booking_api_base_url: str
     booking_api_token: str
     enable_sensitive_fields: bool
+    sensitive_data_encryption_key: str
     default_currency: str
     root_dir: Path
     repo_root: Path
@@ -43,6 +44,7 @@ def get_settings() -> Settings:
         booking_api_base_url=os.getenv("BOOKING_API_BASE_URL", ""),
         booking_api_token=os.getenv("BOOKING_API_TOKEN", ""),
         enable_sensitive_fields=parse_bool(os.getenv("ENABLE_SENSITIVE_FIELDS"), False),
+        sensitive_data_encryption_key=os.getenv("SENSITIVE_DATA_ENCRYPTION_KEY", ""),
         default_currency=os.getenv("DEFAULT_CURRENCY", "RUB"),
         root_dir=root_dir,
         repo_root=repo_root,

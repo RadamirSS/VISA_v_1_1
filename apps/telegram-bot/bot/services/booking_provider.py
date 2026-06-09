@@ -27,7 +27,11 @@ class BookingProvider(Protocol):
 
 class MockBookingProvider:
     async def create_request(self, order: BookingOrder) -> BookingProviderResponse:
-        return BookingProviderResponse(ok=True, status="sent_to_booking_provider", message="Заявка сохранена для ручной или будущей API-обработки.")
+        return BookingProviderResponse(
+            ok=True,
+            status="sent_to_booking_provider",
+            message="Заявка переведена на внутренний mock-этап обработки. Реальный booking API пока не подключен.",
+        )
 
     async def check_slots(self, country_code: str, city: str, time_window_code: str) -> list[Slot]:
         return []

@@ -22,7 +22,18 @@ class PaymentProvider(Protocol):
 
 class MockPaymentProvider:
     async def create_payment(self, order_id: str, amount_rub: int) -> PaymentProviderResponse:
-        return PaymentProviderResponse(ok=True, status="pending", message=f"Создан mock-платеж на {amount_rub} ₽.", payment_id=f"mock_{uuid4().hex[:12]}")
+        return PaymentProviderResponse(
+            ok=True,
+            status="pending",
+            message=f"Создан тестовый mock-платеж на {amount_rub} ₽. Реального списания не будет.",
+            payment_id=f"mock_{uuid4().hex[:12]}",
+        )
 
     async def check_payment(self, payment_id: str) -> PaymentProviderResponse:
-        return PaymentProviderResponse(ok=True, status="paid", message="Mock-платеж подтвержден в режиме разработки.", payment_id=payment_id, paid_at=datetime.now(UTC).isoformat())
+        return PaymentProviderResponse(
+            ok=True,
+            status="paid",
+            message="Mock-платеж подтвержден в режиме разработки. Реальной оплаты не происходило.",
+            payment_id=payment_id,
+            paid_at=datetime.now(UTC).isoformat(),
+        )

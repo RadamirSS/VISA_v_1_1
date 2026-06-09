@@ -11,16 +11,18 @@ from aiogram.types import CallbackQuery, Message
 from bot.config import get_settings
 from bot.keyboards.inline import admin_order_actions_keyboard, admin_status_keyboard
 from bot.keyboards.main import admin_menu_keyboard, simple_keyboard
-from bot.models import OrderStatus, PromoCode
+from bot.models import BookingOrder, OrderStatus, PromoCode, PromoCodeType
 from bot.repositories.orders import OrderRepository
 from bot.repositories.promos import PromoRepository
-from bot.services.access import is_admin
+from bot.services.access import deny_admin_callback, deny_admin_message, is_admin
+from bot.services.booking_provider import MockBookingProvider
 from bot.states.order import AdminState
 
 router = Router()
 settings = get_settings()
 order_repository = OrderRepository(settings.database_url)
 promo_repository = PromoRepository(settings.database_url)
+booking_provider = MockBookingProvider()
 
 
 def _require_admin(message: Message) -> bool:
@@ -28,7 +30,30 @@ def _require_admin(message: Message) -> bool:
 
 
 async def _deny(message: Message) -> None:
-    await message.answer("У вас нет доступа к менеджерскому меню.")
+    await deny_admin_message(message)
+
+
+async def _deny_callback(callback: CallbackQuery) -> None:
+    await deny_admin_callback(callback)
+
+
+def _parse_int(raw: str) -> int | None:
+    try:
+        return int(raw.strip())
+    except ValueError:
+        return None
+
+
+def _promo_value_error(promo_type: str, value: int) -> str | None:
+    if promo_type == PromoCodeType.PERCENT_DISCOUNT and not 1 <= value <= 100:
+        return "Для percent_discount введите число от 1 до 100."
+    if promo_type == PromoCodeType.FIXED_DISCOUNT and value < 1:
+        return "Для fixed_discount сумма скидки должна быть не меньше 1."
+    if promo_type in {PromoCodeType.FULL_DISCOUNT, PromoCodeType.CASH_PAID} and value < 0:
+        return "Для full_discount и cash_paid можно указать 0 или больше."
+    if promo_type == PromoCodeType.MANAGER_OVERRIDE and value < 0:
+        return "Значение manager_override должно быть 0 или больше."
+    return None
 
 
 def _render_order_details(details: dict) -> str:
@@ -48,6 +73,33 @@ def _render_order_details(details: dict) -> str:
         f"Создана: {details['created_at'][:16]}\n"
         f"Заметка: {details.get('manager_note') or '-'}\n"
         f"Платеж: {payment.get('status', '-')}"
+    )
+
+
+def _build_booking_order(details: dict) -> BookingOrder:
+    return BookingOrder(
+        id=details["id"],
+        public_number=details["public_number"],
+        user_id=details["user_id"],
+        country_code=details["country_code"],
+        country_name_ru=details["country_name_ru"],
+        submission_city=details["submission_city"],
+        provider=details["provider"],
+        visa_purpose=details["visa_purpose"],
+        time_window_code=details["time_window_code"],
+        applicants_count=details["applicants_count"],
+        base_price_rub=details["base_price_rub"],
+        additional_applicants_price_rub=details["additional_applicants_price_rub"],
+        discount_rub=details["discount_rub"],
+        total_price_rub=details["total_price_rub"],
+        promo_code=details["promo_code"],
+        payment_status=details["payment_status"],
+        order_status=details["order_status"],
+        requires_manager_review=bool(details["requires_manager_review"]),
+        manager_note=details["manager_note"],
+        user_comment=details["user_comment"],
+        created_at=details["created_at"],
+        updated_at=details["updated_at"],
     )
 
 
@@ -171,6 +223,9 @@ async def create_promo_entry(message: Message, state: FSMContext) -> None:
 
 @router.message(AdminState.promo_code)
 async def promo_code_step(message: Message, state: FSMContext) -> None:
+    if not _require_admin(message):
+        await _deny(message)
+        return
     await state.update_data(code=message.text.strip().upper())
     await state.set_state(AdminState.promo_type)
     await message.answer(
@@ -185,27 +240,66 @@ async def promo_code_step(message: Message, state: FSMContext) -> None:
 
 @router.message(AdminState.promo_type)
 async def promo_type_step(message: Message, state: FSMContext) -> None:
-    await state.update_data(type=message.text.strip())
+    if not _require_admin(message):
+        await _deny(message)
+        return
+    promo_type = message.text.strip()
+    allowed_types = {
+        PromoCodeType.FULL_DISCOUNT,
+        PromoCodeType.CASH_PAID,
+        PromoCodeType.PERCENT_DISCOUNT,
+        PromoCodeType.FIXED_DISCOUNT,
+        PromoCodeType.MANAGER_OVERRIDE,
+    }
+    if promo_type not in allowed_types:
+        await message.answer("Выберите тип промокода кнопкой из списка.")
+        return
+    await state.update_data(type=promo_type)
     await state.set_state(AdminState.promo_value)
     await message.answer("Введите значение промокода. Для full_discount и cash_paid можно указать 0.")
 
 
 @router.message(AdminState.promo_value)
 async def promo_value_step(message: Message, state: FSMContext) -> None:
-    await state.update_data(value=int(message.text.strip()))
+    if not _require_admin(message):
+        await _deny(message)
+        return
+    value = _parse_int(message.text)
+    if value is None:
+        await message.answer("Введите значение промокода числом.")
+        return
+    data = await state.get_data()
+    error = _promo_value_error(data["type"], value)
+    if error:
+        await message.answer(error)
+        return
+    await state.update_data(value=value)
     await state.set_state(AdminState.promo_max_uses)
     await message.answer("Введите максимальное число использований.")
 
 
 @router.message(AdminState.promo_max_uses)
 async def promo_max_uses_step(message: Message, state: FSMContext) -> None:
-    await state.update_data(max_uses=int(message.text.strip()))
+    if not _require_admin(message):
+        await _deny(message)
+        return
+    max_uses = _parse_int(message.text)
+    if max_uses is None:
+        await message.answer("Введите максимальное число использований числом.")
+        return
+    if max_uses < 1:
+        await message.answer("Максимальное число использований должно быть не меньше 1.")
+        return
+    await state.update_data(max_uses=max_uses)
     await state.set_state(AdminState.promo_expires_at)
     await message.answer("Введите дату окончания в ISO-формате или «-» без ограничения.")
 
 
 @router.message(AdminState.promo_expires_at)
 async def promo_expires_step(message: Message, state: FSMContext) -> None:
+    if not _require_admin(message):
+        await _deny(message)
+        return
     await state.update_data(expires_at=None if message.text.strip() == "-" else message.text.strip())
     await state.set_state(AdminState.promo_country_codes)
     await message.answer("Введите коды стран через запятую или «-» без ограничения.")
@@ -213,6 +307,9 @@ async def promo_expires_step(message: Message, state: FSMContext) -> None:
 
 @router.message(AdminState.promo_country_codes)
 async def promo_country_step(message: Message, state: FSMContext) -> None:
+    if not _require_admin(message):
+        await _deny(message)
+        return
     raw = message.text.strip()
     await state.update_data(country_codes=[] if raw == "-" else [item.strip().upper() for item in raw.split(",") if item.strip()])
     await state.set_state(AdminState.promo_time_window_codes)
@@ -221,6 +318,9 @@ async def promo_country_step(message: Message, state: FSMContext) -> None:
 
 @router.message(AdminState.promo_time_window_codes)
 async def promo_window_step(message: Message, state: FSMContext) -> None:
+    if not _require_admin(message):
+        await _deny(message)
+        return
     raw = message.text.strip()
     await state.update_data(time_window_codes=[] if raw == "-" else [item.strip() for item in raw.split(",") if item.strip()])
     await state.set_state(AdminState.promo_note)
@@ -229,6 +329,9 @@ async def promo_window_step(message: Message, state: FSMContext) -> None:
 
 @router.message(AdminState.promo_note)
 async def promo_note_step(message: Message, state: FSMContext) -> None:
+    if not _require_admin(message):
+        await _deny(message)
+        return
     data = await state.get_data()
     note = None if message.text.strip() == "-" else message.text.strip()
     promo = PromoCode(
@@ -254,20 +357,33 @@ async def promo_note_step(message: Message, state: FSMContext) -> None:
 @router.callback_query(F.data.startswith("admin:take:"))
 async def admin_take_order(callback: CallbackQuery) -> None:
     if not is_admin(callback.from_user.id, settings):
-        await callback.answer("Нет доступа", show_alert=True)
+        await _deny_callback(callback)
         return
     public_number = callback.data.split(":")[2]
-    updated = order_repository.update_order_status(public_number, callback.from_user.id, OrderStatus.SENT_TO_BOOKING_PROVIDER.value)
+    details = order_repository.get_order_details(public_number)
+    if details is None:
+        await callback.answer("Заявка не найдена.", show_alert=True)
+        return
+    booking_response = await booking_provider.create_request(_build_booking_order(details))
+    updated = order_repository.update_order_status(
+        public_number,
+        callback.from_user.id,
+        booking_response.status,
+        manager_note=booking_response.message,
+    )
     await callback.answer("Заявка взята в работу.")
     if updated:
         await callback.message.answer(_render_order_details(updated), reply_markup=admin_order_actions_keyboard(public_number))
-        await callback.message.bot.send_message(updated["telegram_id"], f"Заявка {public_number} взята в работу менеджером.")
+        await callback.message.bot.send_message(
+            updated["telegram_id"],
+            f"Заявка {public_number} взята в работу менеджером. Реальное бронирование еще не выполнялось: сейчас используется mock-этап внутренней обработки.",
+        )
 
 
 @router.callback_query(F.data.startswith("admin:cash:"))
 async def admin_cash_order(callback: CallbackQuery) -> None:
     if not is_admin(callback.from_user.id, settings):
-        await callback.answer("Нет доступа", show_alert=True)
+        await _deny_callback(callback)
         return
     public_number = callback.data.split(":")[2]
     updated = order_repository.mark_cash_confirmed(public_number, callback.from_user.id)
@@ -280,7 +396,7 @@ async def admin_cash_order(callback: CallbackQuery) -> None:
 @router.callback_query(F.data.startswith("admin:status:"))
 async def admin_status_order(callback: CallbackQuery) -> None:
     if not is_admin(callback.from_user.id, settings):
-        await callback.answer("Нет доступа", show_alert=True)
+        await _deny_callback(callback)
         return
     public_number = callback.data.split(":")[2]
     await callback.answer()
@@ -290,7 +406,7 @@ async def admin_status_order(callback: CallbackQuery) -> None:
 @router.callback_query(F.data.startswith("admin:setstatus:"))
 async def admin_set_status(callback: CallbackQuery) -> None:
     if not is_admin(callback.from_user.id, settings):
-        await callback.answer("Нет доступа", show_alert=True)
+        await _deny_callback(callback)
         return
     _, _, public_number, status = callback.data.split(":", 3)
     updated = order_repository.update_order_status(public_number, callback.from_user.id, status)
@@ -303,7 +419,7 @@ async def admin_set_status(callback: CallbackQuery) -> None:
 @router.callback_query(F.data.startswith("admin:message:"))
 async def admin_message_user(callback: CallbackQuery) -> None:
     if not is_admin(callback.from_user.id, settings):
-        await callback.answer("Нет доступа", show_alert=True)
+        await _deny_callback(callback)
         return
     public_number = callback.data.split(":")[2]
     details = order_repository.get_order_details(public_number)
@@ -318,7 +434,7 @@ async def admin_message_user(callback: CallbackQuery) -> None:
 @router.callback_query(F.data.startswith("admin:cancel:"))
 async def admin_cancel_order(callback: CallbackQuery) -> None:
     if not is_admin(callback.from_user.id, settings):
-        await callback.answer("Нет доступа", show_alert=True)
+        await _deny_callback(callback)
         return
     public_number = callback.data.split(":")[2]
     updated = order_repository.update_order_status(public_number, callback.from_user.id, OrderStatus.CANCELLED.value, payment_status="cancelled")

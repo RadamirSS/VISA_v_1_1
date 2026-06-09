@@ -84,39 +84,10 @@ async def help_handler(message: Message) -> None:
     await message.answer(HOW_IT_WORKS)
 
 
-@router.message(Command("status"))
-@router.message(F.text == "📌 Мои заявки")
-async def status_handler(message: Message) -> None:
-    orders = order_repository.list_user_orders(message.from_user.id)
-    if not orders:
-        await message.answer("У вас пока нет сохраненных заявок. Создать новую можно через кнопку «📝 Создать заявку на запись».")
-        return
-    lines = []
-    for order in orders:
-        lines.append(
-            f"{order['public_number']}\n"
-            f"Страна: {order['country_name_ru']}\n"
-            f"Город: {order['submission_city']}\n"
-            f"Окно: {order['time_window_code']}\n"
-            f"Оплата: {order['payment_status']}\n"
-            f"Статус: {order['order_status']}\n"
-            f"Создано: {order['created_at'][:10]}"
-        )
-    await message.answer("\n\n".join(lines))
-
-
 @router.message(Command("cancel"))
 async def cancel_handler(message: Message, state: FSMContext) -> None:
     await state.clear()
     await message.answer("Текущий сценарий остановлен. Можно вернуться в меню командой /menu.", reply_markup=main_menu_keyboard())
-
-
-@router.message(Command("admin"))
-async def admin_handler(message: Message) -> None:
-    if not is_admin(message.from_user.id, settings):
-        await message.answer("У вас нет доступа к менеджерскому меню.")
-        return
-    await message.answer("Меню менеджера", reply_markup=admin_menu_keyboard())
 
 
 @router.message(RegistrationState.last_name)
