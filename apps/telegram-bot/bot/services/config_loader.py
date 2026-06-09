@@ -33,7 +33,12 @@ def load_consulates(repo_root: Path) -> list[ConsulateOption]:
             country_name_ru=item["countryNameRu"],
             city=item["city"],
             provider=item["provider"],
+            type=item["type"],
+            jurisdiction=item["jurisdiction"],
+            status=item["status"],
             verification_status=item["verificationStatus"],
+            last_checked_at=item["lastCheckedAt"],
+            source_note=item["sourceNote"],
         )
         for item in payload
     ]

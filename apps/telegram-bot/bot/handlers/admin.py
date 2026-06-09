@@ -13,17 +13,28 @@ from bot.keyboards.inline import (
     admin_message_templates_keyboard,
     admin_order_actions_keyboard,
     admin_status_keyboard,
+    slot_options_keyboard,
     support_request_actions_keyboard,
 )
 from bot.keyboards.main import admin_menu_keyboard, simple_keyboard
 from bot.models import AccessKeyStatus, BookingOrder, OrderStatus, PromoCode, PromoCodeType, SupportRequestStatus
 from bot.repositories.access_keys import AccessKeyRepository, new_access_key
+from bot.repositories.miniapp import MiniAppRepository
 from bot.repositories.orders import OrderRepository
 from bot.repositories.promos import PromoRepository
 from bot.repositories.support_requests import SupportRequestRepository
 from bot.services.access import deny_admin_callback, deny_admin_message, is_admin
 from bot.services.access_keys import generate_access_key
 from bot.services.booking_provider import MockBookingProvider
+from bot.services.notifications import (
+    build_appointment_confirmed_message,
+    build_slot_options_message,
+    build_slot_options_sent_to_manager,
+    build_slot_selected_notification,
+    build_user_slot_selected_message,
+    notify_admins,
+)
+from bot.services.slot_offers import parse_slot_offer_lines
 from bot.states.order import AdminState
 
 router = Router()
@@ -32,6 +43,7 @@ order_repository = OrderRepository(settings.database_url)
 promo_repository = PromoRepository(settings.database_url)
 access_key_repository = AccessKeyRepository(settings.database_url)
 support_request_repository = SupportRequestRepository(settings.database_url)
+miniapp_repository = MiniAppRepository(settings.database_url, repo_root=settings.repo_root)
 booking_provider = MockBookingProvider()
 
 
@@ -113,6 +125,17 @@ def _render_support_request(request) -> str:
     )
 
 
+def _render_case_summary(visa_case) -> str:
+    return (
+        f"Кейс: {visa_case.id}\n"
+        f"Клиент telegram_id: {visa_case.telegram_id}\n"
+        f"Страна: {visa_case.desired_country_name_ru or 'не выбрана'}\n"
+        f"Город: {visa_case.preferred_submission_city or 'не выбран'}\n"
+        f"Провайдер: {visa_case.submission_provider or 'не выбран'}\n"
+        f"Статус: {visa_case.status}"
+    )
+
+
 def _render_order_details(details: dict) -> str:
     first_applicant = details["applicants"][0] if details["applicants"] else {}
     payment = details.get("payment") or {}
@@ -174,15 +197,22 @@ async def list_new_orders(message: Message) -> None:
         await _deny(message)
         return
     orders = order_repository.list_admin_queue()
-    if not orders:
+    cases = miniapp_repository.list_submitted_cases()
+    if not orders and not cases:
         await message.answer("В очереди нет новых заявок.")
         return
-    await message.answer(
-        "\n\n".join(
+    blocks: list[str] = []
+    if orders:
+        blocks.extend(
             f"{item['public_number']}\n{item['country_name_ru']} / {item['submission_city']}\n{item['payment_status']} / {item['order_status']}\n{item['created_at'][:16]}"
             for item in orders
         )
-    )
+    if cases:
+        blocks.extend(
+            f"MINIAPP CASE {item.id}\n{item.desired_country_name_ru or 'Консультация'} / {item.preferred_submission_city or 'уточнить'}\n{item.status}\n{(item.submitted_at or item.updated_at)[:16]}"
+            for item in cases
+        )
+    await message.answer("\n\n".join(blocks))
 
 
 @router.message(F.text == "🔎 Найти заявку")
@@ -266,6 +296,123 @@ async def statistics(message: Message) -> None:
         f"Всего заявок: {stats['orders_total']}\n"
         f"Оплаченных: {stats['paid_total']}\n"
         f"На ручной проверке: {stats['review_total']}"
+    )
+
+
+@router.message(F.text == "📅 Отправить даты")
+async def send_slot_dates_entry(message: Message, state: FSMContext) -> None:
+    if not _require_admin(message):
+        await _deny(message)
+        return
+    await state.set_state(AdminState.slot_offer_case_id)
+    await message.answer("Введите ID кейса, для которого хотите отправить варианты дат.")
+
+
+@router.message(AdminState.slot_offer_case_id)
+async def send_slot_dates_case_id(message: Message, state: FSMContext) -> None:
+    if not _require_admin(message):
+        await _deny(message)
+        return
+    case_id = message.text.strip()
+    visa_case = miniapp_repository.get_case_by_any_id(case_id)
+    if visa_case is None:
+        await message.answer("Кейс не найден.")
+        return
+    await state.update_data(slot_offer_case_id=case_id)
+    await state.set_state(AdminState.slot_offer_options)
+    await message.answer(
+        _render_case_summary(visa_case)
+        + "\n\nВведите варианты дат построчно.\nПример:\n2026-07-15 10:30\n2026-07-16 14:00 | Москва | VMS Italy | Комментарий"
+    )
+
+
+@router.message(AdminState.slot_offer_options)
+async def send_slot_dates_options(message: Message, state: FSMContext) -> None:
+    if not _require_admin(message):
+        await _deny(message)
+        return
+    try:
+        parsed = parse_slot_offer_lines(message.text)
+    except ValueError as exc:
+        await message.answer(str(exc))
+        return
+    preview = "\n".join(
+        f"{item.option_date} {item.option_time} | {item.city or '-'} | {item.provider or '-'} | {item.comment or '-'}"
+        for item in parsed
+    )
+    await state.update_data(slot_offer_raw=message.text, slot_offer_preview=preview)
+    await state.set_state(AdminState.slot_offer_confirm)
+    await message.answer(
+        "Проверьте варианты:\n"
+        f"{preview}\n\n"
+        "Если все верно, отправьте «Отправить». Для отмены отправьте «Отмена»."
+    )
+
+
+@router.message(AdminState.slot_offer_confirm)
+async def send_slot_dates_confirm(message: Message, state: FSMContext) -> None:
+    if not _require_admin(message):
+        await _deny(message)
+        return
+    text = message.text.strip()
+    if text.lower() == "отмена":
+        await state.clear()
+        await message.answer("Отправка вариантов дат отменена.", reply_markup=admin_menu_keyboard())
+        return
+    if text.lower() != "отправить":
+        await message.answer("Отправьте «Отправить» для подтверждения или «Отмена».")
+        return
+    data = await state.get_data()
+    parsed = parse_slot_offer_lines(data["slot_offer_raw"])
+    try:
+        offer, options, visa_case = miniapp_repository.create_slot_offer(
+            data["slot_offer_case_id"],
+            message.from_user.id,
+            parsed,
+        )
+    except ValueError as exc:
+        await message.answer(str(exc))
+        return
+    await state.clear()
+    labels = [(item.id, f"{item.option_date[8:10]}.{item.option_date[5:7]}.{item.option_date[:4]} {item.option_time}") for item in options]
+    await message.bot.send_message(
+        visa_case.telegram_id,
+        build_slot_options_message(),
+        reply_markup=slot_options_keyboard(labels, settings.client_miniapp_url),
+    )
+    await message.answer(build_slot_options_sent_to_manager(visa_case.id, len(options)), reply_markup=admin_menu_keyboard())
+
+
+@router.message(F.text == "✅ Подтвердить запись")
+async def confirm_appointment_entry(message: Message, state: FSMContext) -> None:
+    if not _require_admin(message):
+        await _deny(message)
+        return
+    await state.set_state(AdminState.confirm_appointment_case_id)
+    await message.answer("Введите ID кейса для подтверждения записи.")
+
+
+@router.message(AdminState.confirm_appointment_case_id)
+async def confirm_appointment_step(message: Message, state: FSMContext) -> None:
+    if not _require_admin(message):
+        await _deny(message)
+        return
+    case_id = message.text.strip()
+    try:
+        visa_case = miniapp_repository.confirm_appointment(case_id, message.from_user.id)
+    except ValueError as exc:
+        await message.answer(str(exc))
+        return
+    await state.clear()
+    await message.answer("Запись подтверждена.", reply_markup=admin_menu_keyboard())
+    await message.bot.send_message(
+        visa_case.telegram_id,
+        build_appointment_confirmed_message(
+            visa_case.selected_appointment_date,
+            visa_case.selected_appointment_time,
+            visa_case.selected_appointment_city,
+            visa_case.selected_appointment_provider,
+        ),
     )
 
 
@@ -666,3 +813,28 @@ async def admin_template_send(callback: CallbackQuery) -> None:
             return
         await callback.message.bot.send_message(request.telegram_id, _template_text(template_code))
     await callback.answer("Сообщение отправлено.")
+
+
+@router.callback_query(F.data.startswith("slotselect:"))
+async def slot_select(callback: CallbackQuery) -> None:
+    option_id = callback.data.split(":", 1)[1]
+    try:
+        visa_case, option = miniapp_repository.select_slot_option_for_user(callback.from_user.id, option_id)
+    except ValueError as exc:
+        await callback.answer(str(exc), show_alert=True)
+        return
+    await callback.answer("Дата выбрана.")
+    await callback.message.answer(build_user_slot_selected_message(option.option_date, option.option_time))
+    await notify_admins(
+        callback.message.bot,
+        settings,
+        build_slot_selected_notification(
+            visa_case.id,
+            callback.from_user.id,
+            callback.from_user.username,
+            option.option_date,
+            option.option_time,
+            option.city,
+            option.provider,
+        ),
+    )

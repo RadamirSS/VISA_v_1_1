@@ -31,7 +31,7 @@ async def summary_step(message: Message, state: FSMContext) -> None:
         return
     if message.text == "❌ Отмена":
         await state.clear()
-        await message.answer("Создание заявки отменено.", reply_markup=main_menu_keyboard())
+        await message.answer("Создание заявки отменено.", reply_markup=main_menu_keyboard(settings.client_miniapp_url))
         return
     if message.text != "✅ Подтвердить заявку":
         data = await state.get_data()

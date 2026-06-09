@@ -44,6 +44,102 @@ def build_support_request_notification(request: SupportRequest) -> str:
     return "\n".join(lines)
 
 
+def build_profiles_completed_notification(
+    telegram_id: int,
+    username: str | None,
+    applicants_count: int,
+    case_status: str,
+) -> str:
+    lines = [
+        "Клиент заполнил анкеты.",
+        f"Telegram: @{username}" if username else f"Telegram ID: {telegram_id}",
+        f"telegram_id: {telegram_id}",
+        f"Заявителей: {applicants_count}",
+        f"Статус: {case_status}",
+        "Откройте менеджерский интерфейс для проверки.",
+    ]
+    return "\n".join(lines)
+
+
+def build_case_submitted_notification(
+    case_id: str,
+    telegram_id: int,
+    username: str | None,
+    applicants_count: int,
+    country_name: str | None,
+    city: str | None,
+    provider: str | None,
+    travel_purpose: str | None,
+    case_status: str,
+) -> str:
+    lines = [
+        "Новая заявка отправлена на проверку.",
+        f"Кейс: {case_id}",
+        f"Клиент: @{username} / {telegram_id}" if username else f"Клиент: {telegram_id}",
+        f"Заявителей: {applicants_count}",
+        f"Страна: {country_name or 'не выбрана'}",
+        f"Город подачи: {city or 'уточнить с менеджером'}",
+        f"Визовый центр: {provider or 'консультация / уточнить'}",
+        f"Цель: {travel_purpose or 'уточнить'}",
+        f"Статус: {case_status}",
+        "Откройте менеджерский интерфейс для проверки анкет.",
+    ]
+    return "\n".join(lines)
+
+
+def build_user_case_submitted_message() -> str:
+    return "Ваша заявка отправлена менеджеру на проверку.\nМенеджер проверит данные и сообщит следующие шаги."
+
+
+def build_slot_options_sent_to_manager(case_id: str, options_count: int) -> str:
+    return f"Варианты дат отправлены клиенту.\nКейс: {case_id}\nВариантов: {options_count}"
+
+
+def build_slot_options_message() -> str:
+    return "Менеджер подобрал возможные даты записи.\nВыберите удобный вариант:"
+
+
+def build_slot_selected_notification(
+    case_id: str,
+    telegram_id: int,
+    username: str | None,
+    option_date: str,
+    option_time: str,
+    city: str | None,
+    provider: str | None,
+) -> str:
+    lines = [
+        "Клиент выбрал дату записи.",
+        f"Кейс: {case_id}",
+        f"Клиент: @{username} / {telegram_id}" if username else f"Клиент: {telegram_id}",
+        f"Дата: {option_date}",
+        f"Время: {option_time}",
+        f"Город: {city or 'не указан'}",
+        f"Провайдер: {provider or 'не указан'}",
+    ]
+    return "\n".join(lines)
+
+
+def build_user_slot_selected_message(option_date: str, option_time: str) -> str:
+    return f"Вы выбрали дату: {option_date} {option_time}.\nМенеджер подтвердит запись и сообщит дальнейшие шаги."
+
+
+def build_appointment_confirmed_message(
+    option_date: str | None,
+    option_time: str | None,
+    city: str | None,
+    provider: str | None,
+) -> str:
+    return (
+        "Запись подтверждена.\n"
+        f"Дата: {option_date or '-'}\n"
+        f"Время: {option_time or '-'}\n"
+        f"Город: {city or '-'}\n"
+        f"Визовый центр: {provider or '-'}\n"
+        "Менеджер сообщит, какие документы нужно подготовить."
+    )
+
+
 async def notify_admins(bot: Bot, settings: Settings, text: str) -> None:
     for admin_id in settings.bot_admin_ids:
         await bot.send_message(admin_id, text)

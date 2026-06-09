@@ -71,3 +71,13 @@ def support_request_actions_keyboard(request_id: str) -> InlineKeyboardMarkup:
             [InlineKeyboardButton(text="✉️ Отправить шаблон", callback_data=f"support:message:{request_id}")],
         ]
     )
+
+
+def slot_options_keyboard(options: list[tuple[str, str]], miniapp_url: str | None = None) -> InlineKeyboardMarkup:
+    keyboard = [
+        [InlineKeyboardButton(text=label, callback_data=f"slotselect:{option_id}")]
+        for option_id, label in options
+    ]
+    if miniapp_url:
+        keyboard.append([InlineKeyboardButton(text="Открыть в личном кабинете", url=miniapp_url)])
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)

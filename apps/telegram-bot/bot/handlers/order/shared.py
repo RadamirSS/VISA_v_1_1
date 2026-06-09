@@ -146,7 +146,7 @@ async def start_consultation_order(message: Message, user: User, selected_countr
     await message.answer(
         f"Мы создали консультационный запрос.\nНомер заявки: {order.public_number}\n"
         "Менеджер уточнит страну подачи и возможный следующий шаг вручную.",
-        reply_markup=main_menu_keyboard(),
+        reply_markup=main_menu_keyboard(settings.client_miniapp_url),
     )
 
 
@@ -256,7 +256,7 @@ async def finalize_order(
         f"Срок поиска: {data['time_window_label']}\n"
         f"Статус: {order.payment_status}, {order.order_status}.\n"
         "Мы не гарантируем наличие свободных слотов. Менеджер начнет обработку и сообщит о следующих шагах.",
-        reply_markup=main_menu_keyboard(),
+        reply_markup=main_menu_keyboard(settings.client_miniapp_url),
     )
 
 

@@ -1,18 +1,24 @@
 # Telegram Bot
 
-Рабочий MVP Telegram-бота для клиентского взаимодействия агентства: онбординг, регистрация, активация ключа доступа, создание заявки на запись, статусы и менеджерское меню.
+Рабочий MVP Telegram-бота для клиентского взаимодействия агентства: онбординг, регистрация, активация ключа доступа, создание заявки на запись, статусы, менеджерское меню и backend API для клиентского Mini App.
 
 ## Что умеет бот
 
 - `/start`, `/menu`, `/help`, `/status`, `/cancel`, `/admin`
 - согласие на обработку данных и регистрация пользователя
 - активация ключа доступа от менеджера
+- кнопка `📋 Открыть личный кабинет` для запуска клиентского Mini App
+- backend endpoints для country/city/provider selection и case submission
+- ручной manager flow для отправки вариантов дат и подтверждения записи
 - FSM-сценарий создания заявки на запись
+- FastAPI backend для Mini App (`bot.api.main:app`)
 - config-driven выбор страны, города подачи и окна поиска
 - расчет цены с доп. заявителями
 - офлайн-оплата через менеджера и manager-driven access key flow
 - сохранение пользователей, заявок, заявителей, платежей и аудита в SQLite
 - менеджерское меню с очередью заявок, поиском, ключами доступа, запросами клиентов, статусами, промокодами и статистикой
+- `📥 Новые заявки` показывает как обычные order-based заявки, так и submitted Mini App visa cases
+- менеджер может быстро вставить варианты дат через `📅 Отправить даты`
 
 ## Безопасность и ограничения
 
@@ -21,11 +27,15 @@
 - оплата проходит через менеджера агентства вне Telegram-бота
 - бот не обещает слот, визу или доступ к внешним системам
 - Telegram-бот не собирает паспортные данные
+- паспортные данные теперь можно вводить только в Mini App и его backend API
+- submitted case notification не содержит паспорт, адрес, место рождения и другие чувствительные поля
+- slot notifications также не содержат чувствительные поля анкеты
 - Telegram-бот не собирает сканы документов
 - Telegram-бот не собирает банковские выписки или bank statements
 - `ENABLE_SENSITIVE_FIELDS` и `SENSITIVE_DATA_ENCRYPTION_KEY` зарезервированы для будущего secure backend flow и не должны включать сбор паспортных данных в Telegram MVP
 - если паспортные или документные данные когда-либо понадобятся, менеджер должен запросить их через отдельный защищенный канал или будущий secure backend/storage flow
 - SQLite подходит только для MVP и внутреннего пилота; для production нужен Postgres
+- production Mini App API обязан использовать HTTPS, encryption-at-rest и строгий access control
 - менеджерские права задаются только через `BOT_ADMIN_IDS`
 
 ## Переменные окружения
@@ -37,6 +47,10 @@
 - `PAYMENT_PROVIDER_TOKEN`
 - `BOOKING_API_BASE_URL`
 - `BOOKING_API_TOKEN`
+- `CLIENT_MINIAPP_URL`
+- `MINIAPP_BOT_TOKEN`
+- `MINIAPP_ALLOWED_ORIGIN`
+- `MINIAPP_DEV_AUTH`
 - `ENABLE_SENSITIVE_FIELDS`
 - `SENSITIVE_DATA_ENCRYPTION_KEY`
 - `DEFAULT_CURRENCY`
@@ -50,6 +64,13 @@ source .venv/bin/activate
 pip install -e .
 cp .env.example .env
 python -m bot.main
+```
+
+Локальный запуск API:
+
+```bash
+cd apps/telegram-bot
+uvicorn bot.api.main:app --host 0.0.0.0 --port 8100
 ```
 
 ## Проверка

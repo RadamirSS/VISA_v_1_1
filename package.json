@@ -2,6 +2,9 @@
   "name": "visa-v-1-1-monorepo",
   "private": true,
   "scripts": {
+    "dev:miniapp": "pnpm --dir apps/client-miniapp dev",
+    "build:miniapp": "pnpm --dir apps/client-miniapp build",
+    "typecheck:miniapp": "pnpm --dir apps/client-miniapp typecheck",
     "dev:web": "pnpm --dir apps/web dev",
     "build:web": "pnpm --dir apps/web build",
     "lint:web": "pnpm --dir apps/web lint",

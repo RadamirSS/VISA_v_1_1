@@ -34,7 +34,7 @@ async def start_handler(message: Message, state: FSMContext) -> None:
         await state.clear()
         await message.answer(
             "С возвращением! Здесь можно создать новую заявку, проверить статусы или связаться с менеджером.",
-            reply_markup=main_menu_keyboard(),
+            reply_markup=main_menu_keyboard(settings.client_miniapp_url),
         )
         return
 
@@ -77,10 +77,10 @@ async def consent_accept_handler(callback: CallbackQuery, state: FSMContext) -> 
 @router.message(Command("menu"))
 async def menu_handler(message: Message) -> None:
     if is_admin(message.from_user.id, settings):
-        await message.answer("Главное меню", reply_markup=main_menu_keyboard())
+        await message.answer("Главное меню", reply_markup=main_menu_keyboard(settings.client_miniapp_url))
         await message.answer("Менеджерское меню", reply_markup=admin_menu_keyboard())
         return
-    await message.answer("Главное меню", reply_markup=main_menu_keyboard())
+    await message.answer("Главное меню", reply_markup=main_menu_keyboard(settings.client_miniapp_url))
 
 
 @router.message(Command("help"))
@@ -92,7 +92,10 @@ async def help_handler(message: Message) -> None:
 @router.message(Command("cancel"))
 async def cancel_handler(message: Message, state: FSMContext) -> None:
     await state.clear()
-    await message.answer("Текущий сценарий остановлен. Можно вернуться в меню командой /menu.", reply_markup=main_menu_keyboard())
+    await message.answer(
+        "Текущий сценарий остановлен. Можно вернуться в меню командой /menu.",
+        reply_markup=main_menu_keyboard(settings.client_miniapp_url),
+    )
 
 
 @router.message(RegistrationState.last_name)
@@ -165,7 +168,7 @@ async def registration_email(message: Message, state: FSMContext) -> None:
     await state.clear()
     await message.answer(
         "Профиль сохранен. Для создания заявки активируйте ключ доступа от менеджера через кнопку «🔑 Ввести ключ доступа».",
-        reply_markup=main_menu_keyboard(),
+        reply_markup=main_menu_keyboard(settings.client_miniapp_url),
     )
 
 
@@ -199,5 +202,16 @@ async def activate_access_key(message: Message, state: FSMContext) -> None:
         return
     await message.answer(
         "Ключ доступа активирован. Теперь вы можете создать заявку на запись.",
-        reply_markup=main_menu_keyboard(),
+        reply_markup=main_menu_keyboard(settings.client_miniapp_url),
+    )
+
+
+@router.message(F.text == "📋 Открыть личный кабинет")
+async def open_cabinet(message: Message) -> None:
+    if not settings.client_miniapp_url:
+        await message.answer("Личный кабинет пока не настроен. Обратитесь к менеджеру.")
+        return
+    await message.answer(
+        "В личном кабинете вы можете заполнить анкеты, создать заявку и выбрать город подачи. "
+        "Используйте кнопку Mini App в меню выше."
     )

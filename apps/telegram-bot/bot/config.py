@@ -11,15 +11,19 @@ class Settings:
     bot_token: str
     bot_admin_ids: List[int]
     database_url: str
-    payment_provider: str
-    payment_provider_token: str
-    booking_api_base_url: str
-    booking_api_token: str
-    enable_sensitive_fields: bool
-    sensitive_data_encryption_key: str
-    default_currency: str
-    root_dir: Path
-    repo_root: Path
+    client_miniapp_url: str = ""
+    miniapp_bot_token: str = ""
+    miniapp_allowed_origin: str = ""
+    miniapp_dev_auth: bool = False
+    payment_provider: str = "mock"
+    payment_provider_token: str = ""
+    booking_api_base_url: str = ""
+    booking_api_token: str = ""
+    enable_sensitive_fields: bool = False
+    sensitive_data_encryption_key: str = ""
+    default_currency: str = "RUB"
+    root_dir: Path = Path(".")
+    repo_root: Path = Path(".")
 
 
 def parse_admin_ids(raw: str) -> List[int]:
@@ -39,6 +43,10 @@ def get_settings() -> Settings:
         bot_token=os.getenv("BOT_TOKEN", ""),
         bot_admin_ids=parse_admin_ids(os.getenv("BOT_ADMIN_IDS", "")),
         database_url=os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./visa_bot.db"),
+        client_miniapp_url=os.getenv("CLIENT_MINIAPP_URL", ""),
+        miniapp_bot_token=os.getenv("MINIAPP_BOT_TOKEN", ""),
+        miniapp_allowed_origin=os.getenv("MINIAPP_ALLOWED_ORIGIN", ""),
+        miniapp_dev_auth=parse_bool(os.getenv("MINIAPP_DEV_AUTH"), False),
         payment_provider=os.getenv("PAYMENT_PROVIDER", "mock"),
         payment_provider_token=os.getenv("PAYMENT_PROVIDER_TOKEN", ""),
         booking_api_base_url=os.getenv("BOOKING_API_BASE_URL", ""),

@@ -1,65 +1,45 @@
 # Deployment
 
-## Website
+## Components
 
-1. Перейти в `apps/web`
-2. Установить зависимости через `pnpm install`
-3. Настроить `.env.local` по примеру `.env.example`
-4. Запустить `pnpm build` и `pnpm start`
+В этом MVP деплоятся:
 
-Переменные:
+1. `apps/web`
+2. `apps/telegram-bot`
+3. `apps/telegram-bot/bot/api`
+4. `apps/client-miniapp`
 
-- `LEADS_TELEGRAM_BOT_TOKEN`
-- `LEADS_TELEGRAM_CHAT_ID`
-- `NEXT_PUBLIC_SITE_URL`
+## Required env for Mini App flow
 
-Хранилище лидов:
+- `CLIENT_MINIAPP_URL`
+- `MINIAPP_BOT_TOKEN`
+- `MINIAPP_ALLOWED_ORIGIN`
+- `MINIAPP_DEV_AUTH=false` в production
 
-- `apps/web/storage/leads.jsonl`
-- файл создается автоматически при первой успешной записи
-- если Telegram недоступен, статус уведомления фиксируется в следующей записи с тем же `id`
+## Production notes
 
-## Telegram bot
+- Mini App и API публикуются только через HTTPS
+- SQLite допустим только для локального MVP и внутреннего пилота
+- production rollout требует Postgres
+- нужен encryption-at-rest
+- нужен access control для manager-side tooling
+- нельзя логировать applicant payloads
+- нельзя отправлять passport/document/bank data в Telegram
+- нет прямой интеграции с внешними booking API: менеджерские слоты вводятся вручную
 
-1. Перейти в `apps/telegram-bot`
-2. Создать окружение Python
-3. Установить зависимости `pip install -e .`
-4. Настроить `.env` по примеру `.env.example`
-5. Запустить `python -m bot.main`
-6. Для проверки перед запуском использовать `python -m compileall bot` и `pytest`
-7. Для CI в GitHub используется workflow `telegram-bot-ci.yml`
+## Local verification
 
-Переменные:
+```bash
+cd apps/telegram-bot
+python -m compileall bot
+pytest
+uvicorn bot.api.main:app --host 0.0.0.0 --port 8100
+```
 
-- `BOT_TOKEN`
-- `BOT_ADMIN_IDS`
-- `DATABASE_URL`
-- `PAYMENT_PROVIDER`
-- `BOOKING_API_BASE_URL`
-- `BOOKING_API_TOKEN`
-- `ENABLE_SENSITIVE_FIELDS`
-- `SENSITIVE_DATA_ENCRYPTION_KEY`
-- `NEXT_PUBLIC_SITE_URL`
-
-Примечания по runtime:
-
-- онлайн-оплата в Telegram-боте не используется
-- оплата проходит через менеджера агентства, после чего клиент получает ключ доступа
-- `PAYMENT_PROVIDER` может оставаться placeholder-настройкой для будущих интеграций, но текущий user flow не должен использовать payment provider
-- booking-переходы сейчас mock-only и не выполняют реальное бронирование
-- Telegram-бот не должен собирать паспортные данные, сканы документов или банковские выписки
-- `ENABLE_SENSITIVE_FIELDS` и `SENSITIVE_DATA_ENCRYPTION_KEY` зарезервированы для будущего secure backend flow и не должны включать паспортный сбор в Telegram MVP
-- если паспортные или документные данные понадобятся, их должен запрашивать менеджер через отдельный защищенный канал или будущий secure backend/storage flow
-
-## Manual QA перед деплоем
-
-1. Запустить бота локально или на staging.
-2. Пройти `/start`, consent и регистрацию.
-3. Активировать ключ доступа.
-4. Создать новую заявку.
-5. Проверить, что бот не просит оплату в Telegram.
-6. Проверить `/status`.
-7. Под админом открыть `/admin`.
-8. Создать ключ доступа.
-9. Просмотреть `📥 Новые заявки` и `📨 Запросы клиентов`.
-10. Изменить статус заявки или отправить шаблонное сообщение и проверить пользовательское уведомление.
+```bash
+cd apps/client-miniapp
+pnpm install
+pnpm typecheck
+pnpm build
+pnpm dev
+```

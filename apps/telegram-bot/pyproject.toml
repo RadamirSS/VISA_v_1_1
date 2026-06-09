@@ -10,9 +10,12 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
   "aiogram>=3.13,<4",
+  "fastapi>=0.115,<1",
+  "httpx>=0.28,<1",
   "pydantic-settings>=2.4,<3",
   "python-dotenv>=1.0,<2",
   "aiosqlite>=0.20,<1",
+  "uvicorn>=0.32,<1",
   "pytest>=8.3,<9"
 ]
 

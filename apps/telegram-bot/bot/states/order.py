@@ -56,3 +56,7 @@ class AdminState(StatesGroup):
     access_key_max_applicants = State()
     access_key_expiration = State()
     access_key_note = State()
+    slot_offer_case_id = State()
+    slot_offer_options = State()
+    slot_offer_confirm = State()
+    confirm_appointment_case_id = State()

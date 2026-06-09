@@ -65,5 +65,5 @@ async def contact_manager(message: Message) -> None:
     )
     await message.answer(
         "Запрос отправлен менеджеру. Он свяжется с вами в Telegram или через этот бот.",
-        reply_markup=main_menu_keyboard(),
+        reply_markup=main_menu_keyboard(settings.client_miniapp_url),
     )

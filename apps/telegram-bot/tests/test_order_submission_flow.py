@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import pytest
+import asyncio
 
 from bot.handlers.order import summary as summary_module
 from bot.models import PaymentStatus
@@ -31,8 +31,7 @@ class DummyMessage:
         self.answers.append((text, reply_markup))
 
 
-@pytest.mark.anyio
-async def test_summary_confirmation_finalizes_paid_offline_without_payment_provider(monkeypatch):
+def test_summary_confirmation_finalizes_paid_offline_without_payment_provider(monkeypatch):
     captured = {}
 
     async def fake_finalize_order(message, state, payment_status, order_status, payment_provider_name="mock", provider_payment_id=None, paid_at=None, manager_note=None):
@@ -60,7 +59,7 @@ async def test_summary_confirmation_finalizes_paid_offline_without_payment_provi
         }
     )
     message = DummyMessage("✅ Подтвердить заявку")
-    await summary_module.summary_step(message, state)
+    asyncio.run(summary_module.summary_step(message, state))
     assert captured["payment_status"] == PaymentStatus.PAID_OFFLINE.value
     assert captured["payment_provider_name"] == "offline_manager"
     assert captured["provider_payment_id"] == "VISA-ABCD-1234"

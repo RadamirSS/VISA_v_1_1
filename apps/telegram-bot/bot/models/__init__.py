@@ -53,6 +53,51 @@ class SupportRequestStatus(StrEnum):
     CLOSED = "closed"
 
 
+class ApplicantProfileStatus(StrEnum):
+    DRAFT = "draft"
+    INCOMPLETE = "incomplete"
+    COMPLETED = "completed"
+    NEEDS_REVIEW = "needs_review"
+    APPROVED_BY_MANAGER = "approved_by_manager"
+
+
+class VisaCaseStatus(StrEnum):
+    ACCESS_ACTIVATED = "access_activated"
+    DRAFT = "draft"
+    PROFILES_NOT_STARTED = "profiles_not_started"
+    PROFILES_IN_PROGRESS = "profiles_in_progress"
+    PROFILES_COMPLETED = "profiles_completed"
+    CITY_SELECTION_IN_PROGRESS = "city_selection_in_progress"
+    SUBMITTED_FOR_MANAGER_REVIEW = "submitted_for_manager_review"
+    NEEDS_MANAGER_CONSULTATION = "needs_manager_consultation"
+    WAITING_MANAGER_REVIEW = "waiting_manager_review"
+    NEEDS_CLARIFICATION = "needs_clarification"
+    MANAGER_REVIEWING = "manager_reviewing"
+    READY_FOR_CITY_SELECTION = "ready_for_city_selection"
+    READY_FOR_SLOT_SEARCH = "ready_for_slot_search"
+    SLOT_OPTIONS_SENT = "slot_options_sent"
+    SLOT_SELECTED_BY_CLIENT = "slot_selected_by_client"
+    APPOINTMENT_CONFIRMATION_PENDING = "appointment_confirmation_pending"
+    APPOINTMENT_CONFIRMED = "appointment_confirmed"
+    CANCELLED = "cancelled"
+    CLOSED = "closed"
+
+
+class AppointmentSlotOfferStatus(StrEnum):
+    ACTIVE = "active"
+    EXPIRED = "expired"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
+
+
+class AppointmentSlotOptionStatus(StrEnum):
+    AVAILABLE = "available"
+    SELECTED = "selected"
+    EXPIRED = "expired"
+    CANCELLED = "cancelled"
+    UNAVAILABLE = "unavailable"
+
+
 @dataclass(slots=True)
 class User:
     id: str
@@ -164,6 +209,116 @@ class AccessKey:
 
 
 @dataclass(slots=True)
+class VisaCase:
+    id: str
+    user_id: str
+    telegram_id: int
+    status: str
+    applicants_count: int
+    created_at: str
+    updated_at: str
+    access_key_id: Optional[str] = None
+    access_key_code: Optional[str] = None
+    desired_country_code: Optional[str] = None
+    desired_country_name_ru: Optional[str] = None
+    preferred_submission_city: Optional[str] = None
+    submission_provider: Optional[str] = None
+    submission_provider_type: Optional[str] = None
+    submission_jurisdiction: Optional[str] = None
+    submission_verification_status: Optional[str] = None
+    travel_purpose: Optional[str] = None
+    approximate_travel_start_date: Optional[str] = None
+    approximate_travel_end_date: Optional[str] = None
+    client_comment: Optional[str] = None
+    submitted_at: Optional[str] = None
+    manager_reviewed_at: Optional[str] = None
+    selected_slot_option_id: Optional[str] = None
+    selected_appointment_date: Optional[str] = None
+    selected_appointment_time: Optional[str] = None
+    selected_appointment_city: Optional[str] = None
+    selected_appointment_provider: Optional[str] = None
+    appointment_confirmed_at: Optional[str] = None
+
+
+@dataclass(slots=True)
+class ApplicantProfile:
+    id: str
+    user_id: str
+    telegram_id: int
+    position: int
+    status: str
+    completion_percent: int
+    created_at: str
+    updated_at: str
+    case_id: Optional[str] = None
+    role: Optional[str] = None
+    last_name_latin: Optional[str] = None
+    first_name_latin: Optional[str] = None
+    last_name_cyrillic: Optional[str] = None
+    first_name_cyrillic: Optional[str] = None
+    patronymic: Optional[str] = None
+    birth_date: Optional[str] = None
+    birth_place: Optional[str] = None
+    citizenship: Optional[str] = None
+    gender: Optional[str] = None
+    marital_status: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    residence_country: Optional[str] = None
+    residence_city: Optional[str] = None
+    residence_address: Optional[str] = None
+    postal_code: Optional[str] = None
+    passport_number: Optional[str] = None
+    passport_issue_date: Optional[str] = None
+    passport_expiry_date: Optional[str] = None
+    passport_issuing_authority: Optional[str] = None
+    passport_issuing_country: Optional[str] = None
+    desired_country_code: Optional[str] = None
+    desired_country_name_ru: Optional[str] = None
+    travel_purpose: Optional[str] = None
+    approximate_travel_dates: Optional[str] = None
+    entries_count: Optional[str] = None
+    preferred_submission_city: Optional[str] = None
+
+
+@dataclass(slots=True)
+class MiniAppIdentity:
+    telegram_id: int
+    user_id: str
+    username: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+
+
+@dataclass(slots=True)
+class AppointmentSlotOffer:
+    id: str
+    case_id: str
+    created_by_admin_id: int
+    status: str
+    created_at: str
+    updated_at: str
+    message: Optional[str] = None
+    expires_at: Optional[str] = None
+
+
+@dataclass(slots=True)
+class AppointmentSlotOption:
+    id: str
+    offer_id: str
+    case_id: str
+    option_date: str
+    option_time: str
+    status: str
+    created_at: str
+    updated_at: str
+    city: Optional[str] = None
+    provider: Optional[str] = None
+    address: Optional[str] = None
+    comment: Optional[str] = None
+
+
+@dataclass(slots=True)
 class SupportRequest:
     id: str
     user_id: str
@@ -202,7 +357,12 @@ class ConsulateOption:
     country_name_ru: str
     city: str
     provider: str
+    type: str
+    jurisdiction: str
+    status: str
     verification_status: str
+    last_checked_at: str
+    source_note: str
 
 
 @dataclass(slots=True)
