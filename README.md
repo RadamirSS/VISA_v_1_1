@@ -79,6 +79,9 @@ uvicorn bot.api.main:app --host 0.0.0.0 --port 8100
 
 - [docs/MANAGER_OPERATIONS_FLOW.md](docs/MANAGER_OPERATIONS_FLOW.md) — очередь, case workspace, статусы, шаблоны
 - [docs/DOCUMENT_REQUEST_CHECKLIST.md](docs/DOCUMENT_REQUEST_CHECKLIST.md)
+- [docs/PILOT_QA_CHECKLIST.md](docs/PILOT_QA_CHECKLIST.md) — ручной сценарий пилота
+- [docs/PILOT_READINESS.md](docs/PILOT_READINESS.md) — готовность и ограничения пилота
+- [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — деплой и env
 
 Проверка бота:
 

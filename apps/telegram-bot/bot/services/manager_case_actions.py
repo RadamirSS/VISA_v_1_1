@@ -91,6 +91,19 @@ CASE_TEMPLATE_TEXTS: dict[str, str] = {
 }
 
 QUEUE_SEARCH_HINT = "Используйте 🔎 Найти заявку по ID или номеру."
+MAX_MANAGER_QUEUE_ITEMS = 10
+QUEUE_ITEMS_LIMIT_MESSAGE = "Показаны первые 10 кейсов. Для поиска используйте 🔎 Найти заявку."
+
+RAW_CASE_STATUS_CODES = frozenset(
+    {
+        VisaCaseStatus.SUBMITTED_FOR_MANAGER_REVIEW.value,
+        VisaCaseStatus.MANAGER_REVIEWING.value,
+        VisaCaseStatus.SLOT_OPTIONS_SENT.value,
+        VisaCaseStatus.APPOINTMENT_CONFIRMED.value,
+        VisaCaseStatus.READY_FOR_SLOT_SEARCH.value,
+        VisaCaseStatus.SLOT_SELECTED_BY_CLIENT.value,
+    }
+)
 
 
 @dataclass(slots=True)
@@ -107,6 +120,13 @@ class ManagerQueueGroup:
     label: str
     items: list[ManagerCaseQueueItem]
     truncated: bool = False
+
+
+@dataclass(slots=True)
+class ManagerQueueView:
+    summary_text: str
+    actionable_items: list[ManagerCaseQueueItem]
+    has_more_items: bool
 
 
 def is_terminal_case_status(status: str) -> bool:
@@ -181,24 +201,35 @@ def _matches_group(item: ManagerCaseQueueItem, group_key: str) -> bool:
     return False
 
 
-def build_manager_queue_groups(
-    items: list[ManagerCaseQueueItem],
-    *,
-    limit_per_group: int = 10,
-) -> list[ManagerQueueGroup]:
+def build_manager_queue_groups(items: list[ManagerCaseQueueItem]) -> list[ManagerQueueGroup]:
     groups: list[ManagerQueueGroup] = []
     for key, label in QUEUE_GROUP_LABELS:
         matched = [item for item in items if _matches_group(item, key)]
-        truncated = len(matched) > limit_per_group
         groups.append(
             ManagerQueueGroup(
                 key=key,
                 label=label,
-                items=matched[:limit_per_group],
-                truncated=truncated,
+                items=matched,
             )
         )
     return groups
+
+
+def _queue_item_sort_key(item: ManagerCaseQueueItem) -> str:
+    case = item.visa_case
+    return case.submitted_at or case.updated_at or case.created_at
+
+
+def select_actionable_queue_items(
+    items: list[ManagerCaseQueueItem],
+    *,
+    limit: int = MAX_MANAGER_QUEUE_ITEMS,
+) -> tuple[list[ManagerCaseQueueItem], bool]:
+    unique: dict[str, ManagerCaseQueueItem] = {}
+    for item in sorted(items, key=_queue_item_sort_key, reverse=True):
+        unique.setdefault(item.visa_case.id, item)
+    ordered = list(unique.values())
+    return ordered[:limit], len(ordered) > limit
 
 
 def render_manager_queue(groups: list[ManagerQueueGroup]) -> str:
@@ -208,12 +239,28 @@ def render_manager_queue(groups: list[ManagerQueueGroup]) -> str:
         if not group.items:
             continue
         has_items = True
-        header = f"▸ {group.label} ({len(group.items)}{'+' if group.truncated else ''})"
+        header = f"▸ {group.label} ({len(group.items)})"
         blocks.append(header)
         for item in group.items:
             blocks.append(render_queue_item(item.visa_case))
-        if group.truncated:
-            blocks.append(QUEUE_SEARCH_HINT)
     if not has_items:
         return "В очереди нет активных Mini App кейсов."
     return "\n\n".join(blocks)
+
+
+def build_manager_queue_view(items: list[ManagerCaseQueueItem]) -> ManagerQueueView:
+    groups = build_manager_queue_groups(items)
+    summary_text = render_manager_queue(groups)
+    actionable_items, has_more_items = select_actionable_queue_items(items)
+    if has_more_items:
+        summary_text = f"{summary_text}\n\n{QUEUE_ITEMS_LIMIT_MESSAGE}"
+    return ManagerQueueView(
+        summary_text=summary_text,
+        actionable_items=actionable_items,
+        has_more_items=has_more_items,
+    )
+
+
+def queue_text_contains_raw_status(text: str) -> bool:
+    lowered = text.lower()
+    return any(status in lowered for status in RAW_CASE_STATUS_CODES)

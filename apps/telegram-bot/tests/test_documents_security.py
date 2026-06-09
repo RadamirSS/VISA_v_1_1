@@ -59,7 +59,11 @@ def test_document_list_does_not_expose_storage_path(tmp_path: Path) -> None:
 def test_notification_texts_contain_no_sensitive_content() -> None:
     requested = build_documents_requested_message()
     ready = build_agency_document_ready_message("Бронь отеля")
-    uploaded = build_client_uploaded_notification("VISA-CASE-2026-000123", "Загранпаспорт", "uploaded_by_client")
+    uploaded = build_client_uploaded_notification(
+        "VISA-CASE-2026-000123",
+        "Загранпаспорт",
+        "Загружено, менеджер проверяет",
+    )
 
     for text in (requested, ready, uploaded):
         lowered = text.lower()
@@ -68,7 +72,8 @@ def test_notification_texts_contain_no_sensitive_content() -> None:
         assert "https://" not in lowered
 
     assert "Загранпаспорт" in uploaded
-    assert "uploaded_by_client" in uploaded
+    assert "Загружено, менеджер проверяет" in uploaded
+    assert "uploaded_by_client" not in uploaded
 
 
 def test_client_cannot_download_another_users_agency_document(tmp_path: Path) -> None:

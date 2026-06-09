@@ -155,12 +155,13 @@ Local filesystem storage is for development/MVP only. Production requires:
 
 ## Known limitations
 
-- no manager agency file upload through bot in this PR (status + comment only)
+- manager agency file upload is available through bot workspace (local storage MVP)
 - no PDF generation
 - no online payments
 - no visa-center booking integration
 - no guarantee of visa approval or slot availability
 
-## Next package
+## Pilot QA
 
-**PR-VISA-07F** — Secure Document Upload Hardening + Manager Document Review
+- [PILOT_QA_CHECKLIST.md](PILOT_QA_CHECKLIST.md)
+- [PILOT_READINESS.md](PILOT_READINESS.md)

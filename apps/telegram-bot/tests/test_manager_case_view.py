@@ -17,10 +17,12 @@ from bot.repositories.access_keys import AccessKeyRepository, new_access_key
 from bot.repositories.documents import DocumentRepository
 from bot.repositories.miniapp import MiniAppRepository
 from bot.repositories.users import UserRepository
+from bot.services.manager_case_actions import queue_text_contains_raw_status
 from bot.services.manager_case_view import (
     SENSITIVE_SUBSTRINGS,
     render_applicants_summary,
     render_manager_case_summary,
+    render_queue_item,
 )
 
 
@@ -127,6 +129,13 @@ def test_manager_case_summary_excludes_sensitive_fields(tmp_path: Path) -> None:
         if marker.isdigit() or "." in marker:
             continue
         assert marker.replace("_", " ") not in text or marker == "passport.pdf"
+
+
+def test_queue_item_does_not_expose_raw_status_codes(tmp_path: Path) -> None:
+    case, _, _ = build_context(tmp_path)
+    text = render_queue_item(case)
+    assert "Менеджер проверяет данные" in text
+    assert queue_text_contains_raw_status(text) is False
 
 
 def test_applicants_summary_lists_completion_without_sensitive_fields(tmp_path: Path) -> None:

@@ -100,3 +100,8 @@ Not used:
 
 - гарантируем запись / визу
 - точно запишем
+
+## Pilot QA
+
+- [PILOT_QA_CHECKLIST.md](PILOT_QA_CHECKLIST.md)
+- [PILOT_READINESS.md](PILOT_READINESS.md)

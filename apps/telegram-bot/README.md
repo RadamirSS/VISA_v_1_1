@@ -17,13 +17,20 @@
 - офлайн-оплата через менеджера и manager-driven access key flow
 - сохранение пользователей, заявок, заявителей, платежей и аудита в SQLite
 - менеджерское меню с очередью заявок, поиском, ключами доступа, запросами клиентов, статусами, промокодами и статистикой
-- `📥 Новые заявки` — группированная очередь Mini App кейсов + старые order-based заявки
+- `📥 Новые заявки` — группированная очередь Mini App кейсов (сводка + до 10 карточек **Открыть**) + старые order-based заявки
 - **case workspace** — сводка кейса и inline-действия (анкеты, документы, даты, статус, сообщения)
 - `🔎 Найти заявку` — поиск по `VISA-2026-*`, `VISA-CASE-*`, UUID, telegram_id, username
 - менеджер может отправить даты из workspace или через `📅 Отправить даты`
 - менеджер управляет документами из workspace или через `📎 Документы по заявке`
 
-Подробнее: [../../docs/MANAGER_OPERATIONS_FLOW.md](../../docs/MANAGER_OPERATIONS_FLOW.md)
+Документация:
+
+- [../../docs/MANAGER_OPERATIONS_FLOW.md](../../docs/MANAGER_OPERATIONS_FLOW.md)
+- [../../docs/TELEGRAM_BOT_FLOW.md](../../docs/TELEGRAM_BOT_FLOW.md)
+- [../../docs/DOCUMENT_REQUEST_CHECKLIST.md](../../docs/DOCUMENT_REQUEST_CHECKLIST.md)
+- [../../docs/DEPLOYMENT.md](../../docs/DEPLOYMENT.md)
+- [../../docs/PILOT_QA_CHECKLIST.md](../../docs/PILOT_QA_CHECKLIST.md)
+- [../../docs/PILOT_READINESS.md](../../docs/PILOT_READINESS.md)
 
 ## Безопасность и ограничения
 
@@ -92,6 +99,15 @@ pytest
 CI запускает `python -m compileall bot` и `pytest` для `apps/telegram-bot` на `push` и `pull_request`.
 
 ## Manual QA
+
+Полный пилотный сценарий: [../../docs/PILOT_QA_CHECKLIST.md](../../docs/PILOT_QA_CHECKLIST.md)
+
+Опциональный smoke check:
+
+```bash
+cd apps/telegram-bot
+python scripts/pilot_smoke_check.py
+```
 
 1. Запустить бота.
 2. Выполнить `/start`.

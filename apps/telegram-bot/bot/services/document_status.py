@@ -112,10 +112,11 @@ def build_document_summary_counts(items: list[DocumentItem]) -> dict[str, int | 
         if item.source_type == DocumentSourceType.CLIENT_REQUIRED.value:
             if item.status == ClientDocumentStatus.REQUESTED.value:
                 client_pending += 1
-            elif item.status == ClientDocumentStatus.UPLOADED_BY_CLIENT.value:
+            elif item.status in {
+                ClientDocumentStatus.UPLOADED_BY_CLIENT.value,
+                ClientDocumentStatus.RECEIVED_BY_MANAGER.value,
+            }:
                 client_under_review += 1
-                client_uploaded += 1
-            elif item.status == ClientDocumentStatus.RECEIVED_BY_MANAGER.value:
                 client_uploaded += 1
         elif item.source_type == DocumentSourceType.AGENCY_PREPARED.value:
             if item.status in {
@@ -140,3 +141,11 @@ def build_document_summary_counts(items: list[DocumentItem]) -> dict[str, int | 
         "agency_ready": agency_ready,
         "agency_shared": agency_shared,
     }
+
+
+def get_manager_queue_document_counts(counts: dict[str, int | bool]) -> tuple[int, int]:
+    client_pending = int(counts.get("client_pending", 0))
+    client_under_review = int(counts.get("client_under_review", 0))
+    if client_under_review == 0:
+        client_under_review = int(counts.get("client_uploaded", 0))
+    return client_pending, client_under_review

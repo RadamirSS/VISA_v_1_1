@@ -9,13 +9,16 @@ from bot.repositories.access_keys import AccessKeyRepository, new_access_key
 from bot.repositories.documents import DocumentRepository
 from bot.repositories.miniapp import MiniAppRepository
 from bot.repositories.users import UserRepository
-from bot.services.manager_case_view import render_document_summary_for_manager
+from bot.models import ClientDocumentStatus
+from bot.services.document_status import get_manager_queue_document_counts
+from bot.services.manager_case_view import render_document_summary_for_manager, render_queue_item
 from bot.services.manager_case_actions import (
     ManagerCaseQueueItem,
     build_manager_queue_groups,
     get_allowed_statuses_for_case,
     get_case_template_text,
     is_terminal_case_status,
+    queue_text_contains_raw_status,
 )
 
 
@@ -69,6 +72,43 @@ def test_allowed_statuses_exclude_invalid_slot_options_sent(tmp_path: Path) -> N
     allowed_values = {value for value, _ in allowed}
     assert VisaCaseStatus.SLOT_OPTIONS_SENT.value not in allowed_values
     assert VisaCaseStatus.MANAGER_REVIEWING.value in allowed_values
+
+
+def test_manager_queue_uses_client_under_review_count(tmp_path: Path) -> None:
+    database_url = f"sqlite+aiosqlite:///{tmp_path / 'manager-queue-doc-counts.db'}"
+    repo_root = Path(__file__).resolve().parents[3]
+    init_db(database_url)
+    users = UserRepository(database_url)
+    keys = AccessKeyRepository(database_url)
+    miniapp = MiniAppRepository(database_url, repo_root=repo_root)
+    documents = DocumentRepository(database_url)
+    user = users.upsert_from_telegram(9660, "review", "Review", "User")
+    key = new_access_key("REV-KEY", 1, "miniapp", [], 2, None, None)
+    keys.save(key)
+    keys.bind_and_activate(key.code, user.id, user.telegram_id)
+    case = miniapp.create_case(user, key.id, key.code)
+    case.status = VisaCaseStatus.MANAGER_REVIEWING.value
+    miniapp.save_case(case)
+    uploaded = documents.create_client_request(case.id, DocumentCategory.PHOTO.value, admin_id=1)
+    documents.update_status(uploaded.id, ClientDocumentStatus.UPLOADED_BY_CLIENT.value)
+    received = documents.create_client_request(case.id, DocumentCategory.INTERNATIONAL_PASSPORT.value, admin_id=1)
+    documents.update_status(received.id, ClientDocumentStatus.RECEIVED_BY_MANAGER.value)
+    counts = documents.count_summary(case.id)
+    client_pending, client_under_review = get_manager_queue_document_counts(counts)
+    assert int(counts["client_under_review"]) == 2
+    assert client_under_review == 2
+    groups = build_manager_queue_groups(
+        [ManagerCaseQueueItem(visa_case=case, username="review", client_under_review=client_under_review)]
+    )
+    by_key = {group.key: group for group in groups}
+    assert case.id in {item.visa_case.id for item in by_key["docs_under_review"].items}
+
+
+def test_queue_summary_uses_human_readable_status_labels(tmp_path: Path) -> None:
+    _, case = build_case(tmp_path, VisaCaseStatus.SLOT_OPTIONS_SENT.value)
+    text = render_queue_item(case)
+    assert "Менеджер отправил варианты дат" in text
+    assert queue_text_contains_raw_status(text) is False
 
 
 def test_document_summary_counts_client_and_agency_separately(tmp_path: Path) -> None:

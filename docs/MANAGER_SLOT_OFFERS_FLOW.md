@@ -36,3 +36,8 @@
 - полную анкету
 - документные данные
 - банковские данные
+
+## Pilot QA
+
+- [PILOT_QA_CHECKLIST.md](PILOT_QA_CHECKLIST.md)
+- [PILOT_READINESS.md](PILOT_READINESS.md)

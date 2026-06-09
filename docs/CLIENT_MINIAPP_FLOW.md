@@ -86,3 +86,8 @@ Mini App показывает предупреждение для `needs_verific
 - выбранная дата не считается финально подтвержденной, пока менеджер не подтвердит запись
 
 См. также [DOCUMENT_REQUEST_CHECKLIST.md](DOCUMENT_REQUEST_CHECKLIST.md).
+
+## Pilot QA
+
+- [PILOT_QA_CHECKLIST.md](PILOT_QA_CHECKLIST.md)
+- [PILOT_READINESS.md](PILOT_READINESS.md)

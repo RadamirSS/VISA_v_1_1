@@ -48,13 +48,13 @@ from bot.services.access_keys import generate_access_key
 from bot.services.booking_provider import MockBookingProvider
 from bot.services.case_status import format_case_public_number
 from bot.services.document_status import document_status_label, should_notify_client_for_agency_status
+from bot.services.document_status import get_manager_queue_document_counts
 from bot.services.manager_case_actions import (
     ManagerCaseQueueItem,
-    build_manager_queue_groups,
+    build_manager_queue_view,
     get_allowed_statuses_for_case,
     get_case_template_text,
     is_terminal_case_status,
-    render_manager_queue,
     validate_status_transition,
 )
 from bot.services.manager_case_view import (
@@ -176,15 +176,30 @@ def _build_manager_queue_items() -> list[ManagerCaseQueueItem]:
     items: list[ManagerCaseQueueItem] = []
     for visa_case, username in miniapp_repository.list_manager_active_cases_with_username():
         counts = document_repository.count_summary(visa_case.id)
+        client_pending, client_under_review = get_manager_queue_document_counts(counts)
         items.append(
             ManagerCaseQueueItem(
                 visa_case=visa_case,
                 username=username,
-                client_pending=int(counts.get("client_pending", 0)),
-                client_under_review=int(counts.get("client_under_review", 0)),
+                client_pending=client_pending,
+                client_under_review=client_under_review,
             )
         )
     return items
+
+
+async def _send_manager_queue(message: Message) -> bool:
+    queue_items = _build_manager_queue_items()
+    if not queue_items:
+        return False
+    queue_view = build_manager_queue_view(queue_items)
+    await message.answer(queue_view.summary_text)
+    for item in queue_view.actionable_items:
+        await message.answer(
+            render_queue_item(item.visa_case),
+            reply_markup=manager_queue_item_keyboard(item.visa_case.id),
+        )
+    return True
 
 
 def _render_case_workspace_summary(case_id: str) -> tuple[str, bool] | None:
@@ -318,20 +333,11 @@ async def list_new_orders(message: Message) -> None:
     if not _require_admin(message):
         await _deny(message)
         return
-    queue_items = _build_manager_queue_items()
-    groups = build_manager_queue_groups(queue_items)
-    queue_text = render_manager_queue(groups)
     orders = order_repository.list_admin_queue()
-    if not queue_items and not orders:
+    has_miniapp_queue = await _send_manager_queue(message)
+    if not has_miniapp_queue and not orders:
         await message.answer("В очереди нет новых заявок.")
         return
-    await message.answer(queue_text)
-    for group in groups:
-        for item in group.items:
-            await message.answer(
-                render_queue_item(item.visa_case),
-                reply_markup=manager_queue_item_keyboard(item.visa_case.id),
-            )
     if orders:
         order_blocks = [
             f"Заявка (старая система): {item['public_number']}\n"
@@ -1432,9 +1438,8 @@ async def manager_case_back(callback: CallbackQuery) -> None:
         await _deny_callback(callback)
         return
     await callback.answer()
-    queue_items = _build_manager_queue_items()
-    groups = build_manager_queue_groups(queue_items)
-    await callback.message.answer(render_manager_queue(groups))
+    if not await _send_manager_queue(callback.message):
+        await callback.message.answer("В очереди нет активных Mini App кейсов.")
 
 
 @router.callback_query(F.data.startswith("mgrcase:open:"))

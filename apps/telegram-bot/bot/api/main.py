@@ -669,7 +669,7 @@ async def upload_document(
         identity,
         visa_case,
         updated.title,
-        updated.status,
+        document_status_label(updated, has_file=True),
     )
     return DocumentUploadResponse(
         document_id=updated.id,
