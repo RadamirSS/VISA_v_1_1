@@ -30,8 +30,8 @@ class AppointmentRequestState(StatesGroup):
     applicant_citizenship = State()
     applicant_location = State()
     applicant_relationship = State()
-    applicant_passport_number = State()
-    applicant_passport_expiry = State()
+    applicant_passport_number = State()  # Reserved for future secure backend flow. Not used by Telegram UX.
+    applicant_passport_expiry = State()  # Reserved for future secure backend flow. Not used by Telegram UX.
     promo_question = State()
     promo_entry = State()
     summary = State()

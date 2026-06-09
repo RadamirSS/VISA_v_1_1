@@ -45,7 +45,9 @@
 
 - `PAYMENT_PROVIDER=mock` должен оставаться значением по умолчанию для внутреннего пилота
 - booking-переходы сейчас mock-only и не выполняют реальное бронирование
-- если включить `ENABLE_SENSITIVE_FIELDS=true` без `SENSITIVE_DATA_ENCRYPTION_KEY`, бот не должен собирать паспортные данные
+- Telegram-бот не должен собирать паспортные данные, сканы документов или банковские выписки
+- `ENABLE_SENSITIVE_FIELDS` и `SENSITIVE_DATA_ENCRYPTION_KEY` зарезервированы для будущего secure backend flow и не должны включать паспортный сбор в Telegram MVP
+- если паспортные или документные данные понадобятся, их должен запрашивать менеджер через отдельный защищенный канал или будущий secure backend/storage flow
 
 ## Manual QA перед деплоем
 

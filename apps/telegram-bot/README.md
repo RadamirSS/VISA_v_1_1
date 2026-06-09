@@ -18,8 +18,11 @@
 - реальный booking API пока не подключен, `BookingProvider` работает как mock/adapter placeholder
 - платежный провайдер только mock: реального списания, карты и настоящих реквизитов нет
 - бот не обещает слот, визу или доступ к внешним системам
-- паспортные данные по умолчанию не запрашиваются
-- если `ENABLE_SENSITIVE_FIELDS=true`, но `SENSITIVE_DATA_ENCRYPTION_KEY` не задан, сбор паспортных данных в боте блокируется
+- Telegram-бот не собирает паспортные данные
+- Telegram-бот не собирает сканы документов
+- Telegram-бот не собирает банковские выписки или bank statements
+- `ENABLE_SENSITIVE_FIELDS` и `SENSITIVE_DATA_ENCRYPTION_KEY` зарезервированы для будущего secure backend flow и не должны включать сбор паспортных данных в Telegram MVP
+- если паспортные или документные данные когда-либо понадобятся, менеджер должен запросить их через отдельный защищенный канал или будущий secure backend/storage flow
 - SQLite подходит только для MVP и внутреннего пилота; для production нужен Postgres
 - менеджерские права задаются только через `BOT_ADMIN_IDS`
 
@@ -54,6 +57,8 @@ cd apps/telegram-bot
 python -m compileall bot
 pytest
 ```
+
+CI запускает `python -m compileall bot` и `pytest` для `apps/telegram-bot` на `push` и `pull_request`.
 
 ## Manual QA
 

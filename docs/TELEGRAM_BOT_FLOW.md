@@ -51,7 +51,10 @@
 
 - real booking API пока не подключен
 - real payment provider пока не подключен
-- passport/document scans нельзя отправлять через Telegram-бота
-- паспортные данные отключены по умолчанию и блокируются без ключа шифрования
+- Telegram-бот не собирает паспортные данные
+- Telegram-бот не собирает сканы документов
+- Telegram-бот не собирает банковские выписки или bank statements
+- `ENABLE_SENSITIVE_FIELDS` и `SENSITIVE_DATA_ENCRYPTION_KEY` зарезервированы для будущего secure backend flow и не включают сбор паспортных данных в текущем MVP
+- если паспортные или документные данные понадобятся, менеджер должен запросить их через отдельный защищенный канал или будущий secure backend/storage flow
 - SQLite является MVP-хранилищем; production должен использовать Postgres
 - admin IDs задаются через env
