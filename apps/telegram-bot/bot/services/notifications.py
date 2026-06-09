@@ -3,7 +3,7 @@ from __future__ import annotations
 from aiogram import Bot
 
 from bot.config import Settings
-from bot.models import BookingOrder
+from bot.models import BookingOrder, SupportRequest
 
 
 def build_new_order_notification(order: BookingOrder) -> str:
@@ -24,6 +24,23 @@ def build_manager_contact_notification(telegram_id: int, username: str | None) -
     ]
     if username:
         lines.append(f"Username: @{username}")
+    return "\n".join(lines)
+
+
+def build_access_key_activated_notification(code: str) -> str:
+    return f"Ключ доступа {code} активирован. Теперь можно создать заявку на запись."
+
+
+def build_support_request_notification(request: SupportRequest) -> str:
+    lines = [
+        f"Новый запрос клиента: {request.id}",
+        f"Telegram ID: {request.telegram_id}",
+        f"Статус: {request.status}",
+    ]
+    if request.username:
+        lines.append(f"Username: @{request.username}")
+    if request.message:
+        lines.append(f"Сообщение: {request.message}")
     return "\n".join(lines)
 
 

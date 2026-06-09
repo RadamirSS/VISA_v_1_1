@@ -7,22 +7,23 @@
 1. `/start` и онбординг
 2. согласие на обработку данных
 3. регистрация пользователя
-4. создание заявки на запись
-5. выбор страны
-6. выбор города подачи и визового центра
-7. выбор цели поездки
-8. выбор окна поиска записи
-9. выбор количества заявителей
-10. ввод данных заявителей
-11. промокод или продолжение без промокода
-12. расчет цены
-13. mock-оплата или отметка об офлайн-оплате
-14. создание заявки менеджеру
-15. `/status` или `📌 Мои заявки`
+4. активация ключа доступа от менеджера
+5. создание заявки на запись
+6. выбор страны
+7. выбор города подачи и визового центра
+8. выбор цели поездки
+9. выбор окна поиска записи
+10. выбор количества заявителей
+11. ввод данных заявителей
+12. подтверждение заявки
+13. создание заявки менеджеру как `paid_offline`
+14. `/status` или `📌 Мои заявки`
 
 ## Admin flow
 
 - просмотр новых заявок
+- создание ключей доступа
+- просмотр запросов клиентов
 - создание промокодов
 - подтверждение оплаты наличными
 - ручное изменение статусов
@@ -33,24 +34,25 @@
 1. Start bot.
 2. Accept consent.
 3. Register user.
-4. Create appointment request.
-5. Choose country.
-6. Choose city.
-7. Choose purpose.
-8. Choose time window.
-9. Add applicants.
-10. Apply no promo / promo.
-11. Complete mock payment.
+4. Activate access key.
+5. Create appointment request.
+6. Choose country.
+7. Choose city.
+8. Choose purpose.
+9. Choose time window.
+10. Add applicants.
+11. Confirm order without in-bot payment.
 12. Check `/status`.
 13. Admin opens `/admin`.
-14. Admin views new orders.
-15. Admin changes order status.
-16. User receives status notification.
+14. Admin creates access key and views new orders.
+15. Admin changes order status or sends template message.
+16. User receives status/template notification.
 
 ## Ограничения
 
 - real booking API пока не подключен
-- real payment provider пока не подключен
+- real payment provider пока не подключен и не используется в текущем user flow
+- ключ доступа является основным production-механизмом авторизации клиента
 - Telegram-бот не собирает паспортные данные
 - Telegram-бот не собирает сканы документов
 - Telegram-бот не собирает банковские выписки или bank statements

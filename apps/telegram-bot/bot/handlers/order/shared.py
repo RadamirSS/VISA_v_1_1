@@ -9,9 +9,12 @@ from aiogram.types import Message
 from bot.config import get_settings
 from bot.keyboards.main import main_menu_keyboard, simple_keyboard
 from bot.models import OrderStatus, PaymentStatus, User
+from bot.repositories.access_keys import AccessKeyRepository
 from bot.repositories.orders import OrderRepository
 from bot.repositories.promos import PromoRepository
+from bot.repositories.support_requests import SupportRequestRepository
 from bot.repositories.users import UserRepository
+from bot.services.access_keys import validate_access_key
 from bot.services.config_loader import (
     find_consulates_by_country,
     find_country_by_name,
@@ -35,6 +38,8 @@ settings = get_settings()
 user_repository = UserRepository(settings.database_url)
 order_repository = OrderRepository(settings.database_url)
 promo_repository = PromoRepository(settings.database_url)
+access_key_repository = AccessKeyRepository(settings.database_url)
+support_request_repository = SupportRequestRepository(settings.database_url)
 payment_provider = MockPaymentProvider()
 
 SPECIAL_COUNTRIES = {"Другая страна", "Не знаю, нужна консультация"}
@@ -84,20 +89,8 @@ def applicant_count_keyboard():
     return simple_keyboard(["1 заявитель", "2 заявителя"], ["3 заявителя", "4 заявителя"], ["5+", "Ввести вручную"])
 
 
-def promo_question_keyboard():
-    return simple_keyboard(["Да, ввести промокод"], ["Нет, продолжить к оплате"])
-
-
 def summary_keyboard():
-    return simple_keyboard(["✅ Подтвердить заявку"], ["🎟 Ввести другой промокод", "✏️ Изменить данные"], ["❌ Отмена"])
-
-
-def payment_keyboard():
-    return simple_keyboard(["💳 Оплатить"], ["🎟 Ввести промокод"], ["💬 Я оплатил менеджеру наличными"], ["❌ Отмена"])
-
-
-def payment_confirmation_keyboard():
-    return simple_keyboard(["✅ Подтвердить mock-оплату"], ["❌ Отмена"])
+    return simple_keyboard(["✅ Подтвердить заявку"], ["✏️ Изменить данные"], ["❌ Отмена"])
 
 
 def skip_keyboard():
@@ -112,6 +105,7 @@ def ensure_registered(message: Message) -> User | None:
 
 
 async def start_consultation_order(message: Message, user: User, selected_country: str) -> None:
+    access_key = access_key_repository.get_active_for_telegram_user(message.from_user.id)
     sequence = order_repository.next_sequence()
     order = create_order(
         OrderInput(
@@ -128,7 +122,9 @@ async def start_consultation_order(message: Message, user: User, selected_countr
             discount_rub=0,
             total_price_rub=0,
             promo_code=None,
-            payment_status=PaymentStatus.NOT_REQUIRED.value,
+            access_key_code=access_key.code if access_key else None,
+            access_key_id=access_key.id if access_key else None,
+            payment_status=PaymentStatus.PAID_OFFLINE.value,
             order_status=OrderStatus.REQUIRES_MANAGER_REVIEW.value,
             requires_manager_review=True,
             manager_note="Консультационный запрос без полной booking-flow логики",
@@ -155,8 +151,8 @@ async def start_consultation_order(message: Message, user: User, selected_countr
 
 
 def render_summary(data: dict[str, Any]) -> str:
-    promo_text = data.get("promo_code") or "нет"
-    payment_text = data.get("payment_status_label") or "требуется оплата"
+    access_key_code = data.get("access_key_code") or "не активирован"
+    payment_text = "вне бота / подтверждена агентством"
     price_text = render_price_summary(
         data["base_price_rub"],
         data["additional_applicants_price_rub"],
@@ -171,8 +167,8 @@ def render_summary(data: dict[str, Any]) -> str:
         f"Заявителей: {data['applicants_count']}\n"
         "Стоимость:\n"
         f"{price_text}\n"
-        f"Промокод: {promo_text}\n"
-        f"Статус оплаты: {payment_text}"
+        f"Доступ: подтвержден ключом менеджера ({access_key_code})\n"
+        f"Оплата: {payment_text}"
     )
 
 
@@ -195,6 +191,8 @@ def build_order_payload(
             discount_rub=state_data["discount_rub"],
             total_price_rub=state_data["total_price_rub"],
             promo_code=state_data.get("promo_code"),
+            access_key_code=state_data.get("access_key_code"),
+            access_key_id=state_data.get("access_key_id"),
             payment_status=payment_status,
             order_status=order_status,
             requires_manager_review=state_data["requires_manager_review"],
@@ -244,6 +242,8 @@ async def finalize_order(
             paid_at=paid_at,
         )
     order_repository.create_order(order, applicants, payment, actor_type="user", actor_id=str(message.from_user.id))
+    if data.get("access_key_id"):
+        access_key_repository.consume_for_order(data["access_key_id"], order.id)
     if data.get("promo_code"):
         promo_repository.increment_used_count(data["promo_code"])
     await notify_admins(message.bot, settings, build_new_order_notification(order))
@@ -265,11 +265,25 @@ async def prompt_next_applicant(message: Message, state: FSMContext) -> None:
     current_index = data.get("current_applicant_index", 0)
     applicants_count = data["applicants_count"]
     if current_index >= applicants_count:
-        await state.set_state(AppointmentRequestState.promo_question)
-        await message.answer("У вас есть промокод от менеджера?", reply_markup=promo_question_keyboard())
+        await state.update_data(payment_status_label="вне бота / подтверждена агентством")
+        await state.set_state(AppointmentRequestState.summary)
+        summary_data = await state.get_data()
+        await message.answer(render_summary(summary_data), reply_markup=summary_keyboard())
         return
     await state.set_state(AppointmentRequestState.applicant_last_name)
     await message.answer(f"Заявитель {current_index + 1} из {applicants_count}. Укажите фамилию.")
+
+
+def get_user_access_key(telegram_id: int):
+    return access_key_repository.get_active_for_telegram_user(telegram_id)
+
+
+def user_has_valid_access_key(telegram_id: int) -> bool:
+    access_key = access_key_repository.get_active_for_telegram_user(telegram_id)
+    if access_key is None:
+        return False
+    result = validate_access_key(access_key, telegram_id)
+    return result.valid
 
 
 def order_start_text() -> str:
@@ -307,16 +321,14 @@ __all__ = [
     "finalize_order",
     "find_consulates_by_country",
     "find_country_by_name",
+    "get_user_access_key",
     "main_menu_keyboard",
     "notify_admins",
     "order_repository",
     "order_start_text",
-    "payment_confirmation_keyboard",
-    "payment_keyboard",
     "payment_provider",
     "price_keyboard",
     "price_tiers",
-    "promo_question_keyboard",
     "promo_repository",
     "prompt_next_applicant",
     "purpose_keyboard",
@@ -328,5 +340,8 @@ __all__ = [
     "start_consultation_order",
     "store_applicant_and_continue",
     "summary_keyboard",
+    "support_request_repository",
+    "user_has_valid_access_key",
     "user_repository",
+    "validate_access_key",
 ]

@@ -50,6 +50,8 @@ def test_order_repository_end_to_end(tmp_path: Path):
             discount_rub=0,
             total_price_rub=14900,
             promo_code=None,
+            access_key_code="VISA-TEST-0001",
+            access_key_id="ak-1",
             payment_status=PaymentStatus.PENDING.value,
             order_status=OrderStatus.AWAITING_PAYMENT.value,
             requires_manager_review=False,
@@ -69,6 +71,7 @@ def test_order_repository_end_to_end(tmp_path: Path):
     assert details is not None
     assert details["payment"]["status"] == PaymentStatus.PENDING.value
     assert details["applicants"][0]["last_name"] == "Иванов"
+    assert details["access_key_code"] == "VISA-TEST-0001"
 
     updated = orders.update_order_status(order.public_number, 999, OrderStatus.PAID_WAITING_BOOKING.value, PaymentStatus.PAID.value)
     assert updated is not None

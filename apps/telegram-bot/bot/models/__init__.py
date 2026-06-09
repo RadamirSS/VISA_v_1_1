@@ -39,6 +39,20 @@ class OrderStatus(StrEnum):
     REFUNDED = "refunded"
 
 
+class AccessKeyStatus(StrEnum):
+    ACTIVE = "active"
+    ACTIVATED = "activated"
+    CONSUMED = "consumed"
+    REVOKED = "revoked"
+    EXPIRED = "expired"
+
+
+class SupportRequestStatus(StrEnum):
+    OPEN = "open"
+    IN_PROGRESS = "in_progress"
+    CLOSED = "closed"
+
+
 @dataclass(slots=True)
 class User:
     id: str
@@ -89,6 +103,8 @@ class BookingOrder:
     discount_rub: int
     total_price_rub: int
     promo_code: Optional[str]
+    access_key_code: Optional[str]
+    access_key_id: Optional[str]
     payment_status: str
     order_status: str
     requires_manager_review: bool
@@ -126,6 +142,37 @@ class PromoCode:
     country_codes: list[str] = field(default_factory=list)
     time_window_codes: list[str] = field(default_factory=list)
     note: Optional[str] = None
+
+
+@dataclass(slots=True)
+class AccessKey:
+    id: str
+    code: str
+    status: str
+    max_uses: int
+    used_count: int
+    created_by_admin_id: int
+    created_at: str
+    updated_at: str
+    bound_user_id: Optional[str] = None
+    bound_telegram_id: Optional[int] = None
+    country_codes: list[str] = field(default_factory=list)
+    service_type: Optional[str] = None
+    max_applicants: Optional[int] = None
+    expires_at: Optional[str] = None
+    note: Optional[str] = None
+
+
+@dataclass(slots=True)
+class SupportRequest:
+    id: str
+    user_id: str
+    telegram_id: int
+    status: str
+    created_at: str
+    updated_at: str
+    username: Optional[str] = None
+    message: Optional[str] = None
 
 
 @dataclass(slots=True)

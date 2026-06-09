@@ -23,6 +23,8 @@ from .shared import (
     simple_keyboard,
     start_consultation_order,
     ensure_registered,
+    validate_access_key,
+    get_user_access_key,
 )
 
 router = Router()
@@ -42,6 +44,11 @@ async def order_country(message: Message, state: FSMContext) -> None:
     country = find_country_by_name(countries(), selected)
     if country is None:
         await message.answer("Выберите страну из списка.", reply_markup=country_keyboard())
+        return
+    access_key = get_user_access_key(message.from_user.id)
+    validation = validate_access_key(access_key, message.from_user.id, country_code=country.code)
+    if not validation.valid:
+        await message.answer(validation.error or "Ключ доступа не подходит для выбранной страны.")
         return
     matched_consulates = find_consulates_by_country(consulates(), country.code)
     if not matched_consulates:
@@ -120,13 +127,17 @@ async def order_applicants_count(message: Message, state: FSMContext) -> None:
         applicants_count=applicants_count,
         additional_applicant_fee_rub=data["additional_applicant_fee_rub"],
     )
+    access_key = get_user_access_key(message.from_user.id)
+    requires_manager_review = calc.requires_manager_review or (
+        access_key is not None and access_key.max_applicants is not None and applicants_count > access_key.max_applicants
+    )
     await state.update_data(
         applicants_count=applicants_count,
         base_price_rub=calc.base_price_rub,
         additional_applicants_price_rub=calc.additional_applicants_price_rub,
         discount_rub=calc.discount_rub,
         total_price_rub=calc.total_price_rub,
-        requires_manager_review=calc.requires_manager_review,
+        requires_manager_review=requires_manager_review,
         applicants=[],
         current_applicant_index=0,
     )
@@ -149,13 +160,17 @@ async def order_applicants_manual_count(message: Message, state: FSMContext) -> 
         applicants_count=applicants_count,
         additional_applicant_fee_rub=data["additional_applicant_fee_rub"],
     )
+    access_key = get_user_access_key(message.from_user.id)
+    requires_manager_review = calc.requires_manager_review or (
+        access_key is not None and access_key.max_applicants is not None and applicants_count > access_key.max_applicants
+    )
     await state.update_data(
         applicants_count=applicants_count,
         base_price_rub=calc.base_price_rub,
         additional_applicants_price_rub=calc.additional_applicants_price_rub,
         discount_rub=calc.discount_rub,
         total_price_rub=calc.total_price_rub,
-        requires_manager_review=calc.requires_manager_review,
+        requires_manager_review=requires_manager_review,
         applicants=[],
         current_applicant_index=0,
     )

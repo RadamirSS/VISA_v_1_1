@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 from aiogram import F, Router
@@ -9,12 +9,20 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
 from bot.config import get_settings
-from bot.keyboards.inline import admin_order_actions_keyboard, admin_status_keyboard
+from bot.keyboards.inline import (
+    admin_message_templates_keyboard,
+    admin_order_actions_keyboard,
+    admin_status_keyboard,
+    support_request_actions_keyboard,
+)
 from bot.keyboards.main import admin_menu_keyboard, simple_keyboard
-from bot.models import BookingOrder, OrderStatus, PromoCode, PromoCodeType
+from bot.models import AccessKeyStatus, BookingOrder, OrderStatus, PromoCode, PromoCodeType, SupportRequestStatus
+from bot.repositories.access_keys import AccessKeyRepository, new_access_key
 from bot.repositories.orders import OrderRepository
 from bot.repositories.promos import PromoRepository
+from bot.repositories.support_requests import SupportRequestRepository
 from bot.services.access import deny_admin_callback, deny_admin_message, is_admin
+from bot.services.access_keys import generate_access_key
 from bot.services.booking_provider import MockBookingProvider
 from bot.states.order import AdminState
 
@@ -22,6 +30,8 @@ router = Router()
 settings = get_settings()
 order_repository = OrderRepository(settings.database_url)
 promo_repository = PromoRepository(settings.database_url)
+access_key_repository = AccessKeyRepository(settings.database_url)
+support_request_repository = SupportRequestRepository(settings.database_url)
 booking_provider = MockBookingProvider()
 
 
@@ -54,6 +64,53 @@ def _promo_value_error(promo_type: str, value: int) -> str | None:
     if promo_type == PromoCodeType.MANAGER_OVERRIDE and value < 0:
         return "Значение manager_override должно быть 0 или больше."
     return None
+
+
+def _render_access_key(access_key) -> str:
+    country_text = ", ".join(access_key.country_codes) if access_key.country_codes else "без ограничения"
+    applicants_text = f"до {access_key.max_applicants}" if access_key.max_applicants else "без лимита / manual review"
+    expires_text = access_key.expires_at[:10] if access_key.expires_at else "без ограничения"
+    service_map = {
+        "appointment_request": "Запись в консульство / визовый центр",
+        "consultation": "Консультация",
+        "full_visa_support": "Полное визовое сопровождение",
+    }
+    service_text = service_map.get(access_key.service_type or "", access_key.service_type or "-")
+    return (
+        "Ключ доступа создан:\n"
+        f"Код: {access_key.code}\n"
+        f"Услуга: {service_text}\n"
+        f"Страна: {country_text}\n"
+        f"Заявителей: {applicants_text}\n"
+        f"Срок действия: {expires_text}\n"
+        "Отправьте клиенту:\n"
+        f"Здравствуйте! Для продолжения работы откройте нашего Telegram-бота и введите ключ доступа: {access_key.code}"
+    )
+
+
+def _template_text(template_code: str, public_number: str | None = None) -> str:
+    templates = {
+        "reviewing": "Менеджер проверяет вашу заявку.",
+        "clarify": "По вашей заявке нужны уточнения. Пожалуйста, свяжитесь с менеджером.",
+        "waiting_slot": "По вашей заявке ожидаем доступный слот.",
+        "slot_found": "По вашей заявке найден слот. Менеджер свяжется с вами для следующего шага.",
+        "booked": "Запись подтверждена. Менеджер направит детали отдельно.",
+        "contact_manager": "Пожалуйста, свяжитесь с менеджером для уточнения деталей.",
+    }
+    text = templates.get(template_code, "Менеджер обновил статус.")
+    if public_number:
+        return f"По заявке {public_number}: {text}"
+    return text
+
+
+def _render_support_request(request) -> str:
+    return (
+        f"Запрос: {request.id}\n"
+        f"Клиент: @{request.username or '-'} / {request.telegram_id}\n"
+        f"Статус: {request.status}\n"
+        f"Создан: {request.created_at[:16]}\n"
+        f"Сообщение: {request.message or '-'}"
+    )
 
 
 def _render_order_details(details: dict) -> str:
@@ -210,6 +267,127 @@ async def statistics(message: Message) -> None:
         f"Оплаченных: {stats['paid_total']}\n"
         f"На ручной проверке: {stats['review_total']}"
     )
+
+
+@router.message(F.text == "🔑 Создать ключ доступа")
+async def create_access_key_entry(message: Message, state: FSMContext) -> None:
+    if not _require_admin(message):
+        await _deny(message)
+        return
+    await state.set_state(AdminState.access_key_code)
+    await message.answer("Введите код ключа доступа или отправьте «AUTO» для автогенерации.")
+
+
+@router.message(AdminState.access_key_code)
+async def access_key_code_step(message: Message, state: FSMContext) -> None:
+    if not _require_admin(message):
+        await _deny(message)
+        return
+    code = generate_access_key() if message.text.strip().upper() == "AUTO" else message.text.strip().upper()
+    await state.update_data(code=code)
+    await state.set_state(AdminState.access_key_service_type)
+    await message.answer(
+        "Выберите тип услуги.",
+        reply_markup=simple_keyboard(
+            ["appointment_request"],
+            ["consultation"],
+            ["full_visa_support"],
+        ),
+    )
+
+
+@router.message(AdminState.access_key_service_type)
+async def access_key_service_type_step(message: Message, state: FSMContext) -> None:
+    if not _require_admin(message):
+        await _deny(message)
+        return
+    await state.update_data(service_type=message.text.strip())
+    await state.set_state(AdminState.access_key_country)
+    await message.answer(
+        "Выберите ограничение по стране.",
+        reply_markup=simple_keyboard(
+            ["без ограничения"],
+            ["IT", "FR", "ES"],
+            ["GR", "DE", "PT"],
+        ),
+    )
+
+
+@router.message(AdminState.access_key_country)
+async def access_key_country_step(message: Message, state: FSMContext) -> None:
+    if not _require_admin(message):
+        await _deny(message)
+        return
+    country_codes = [] if message.text.strip() == "без ограничения" else [message.text.strip().upper()]
+    await state.update_data(country_codes=country_codes)
+    await state.set_state(AdminState.access_key_max_applicants)
+    await message.answer(
+        "Укажите максимум заявителей.",
+        reply_markup=simple_keyboard(["1", "2", "3"], ["4", "5"], ["без лимита / manual review"]),
+    )
+
+
+@router.message(AdminState.access_key_max_applicants)
+async def access_key_max_applicants_step(message: Message, state: FSMContext) -> None:
+    if not _require_admin(message):
+        await _deny(message)
+        return
+    text = message.text.strip()
+    max_applicants = None if text == "без лимита / manual review" else int(text)
+    await state.update_data(max_applicants=max_applicants)
+    await state.set_state(AdminState.access_key_expiration)
+    await message.answer(
+        "Укажите срок действия.",
+        reply_markup=simple_keyboard(["7 дней", "14 дней"], ["30 дней"], ["без ограничения"]),
+    )
+
+
+@router.message(AdminState.access_key_expiration)
+async def access_key_expiration_step(message: Message, state: FSMContext) -> None:
+    if not _require_admin(message):
+        await _deny(message)
+        return
+    mapping = {"7 дней": 7, "14 дней": 14, "30 дней": 30}
+    expires_at = None
+    if message.text.strip() in mapping:
+        expires_at = (datetime.now(UTC).replace(microsecond=0) + timedelta(days=mapping[message.text.strip()])).isoformat()
+    await state.update_data(expires_at=expires_at)
+    await state.set_state(AdminState.access_key_note)
+    await message.answer("Введите заметку или «-».")
+
+
+@router.message(AdminState.access_key_note)
+async def access_key_note_step(message: Message, state: FSMContext) -> None:
+    if not _require_admin(message):
+        await _deny(message)
+        return
+    data = await state.get_data()
+    note = None if message.text.strip() == "-" else message.text.strip()
+    access_key = new_access_key(
+        code=data["code"],
+        created_by_admin_id=message.from_user.id,
+        service_type=data["service_type"],
+        country_codes=data["country_codes"],
+        max_applicants=data["max_applicants"],
+        expires_at=data["expires_at"],
+        note=note,
+    )
+    access_key_repository.save(access_key)
+    await state.clear()
+    await message.answer(_render_access_key(access_key), reply_markup=admin_menu_keyboard())
+
+
+@router.message(F.text == "📨 Запросы клиентов")
+async def list_support_requests(message: Message) -> None:
+    if not _require_admin(message):
+        await _deny(message)
+        return
+    requests = support_request_repository.list_open()
+    if not requests:
+        await message.answer("Открытых запросов клиентов нет.")
+        return
+    for request in requests:
+        await message.answer(_render_support_request(request), reply_markup=support_request_actions_keyboard(request.id))
 
 
 @router.message(F.text == "🎟 Создать промокод")
@@ -422,13 +600,11 @@ async def admin_message_user(callback: CallbackQuery) -> None:
         await _deny_callback(callback)
         return
     public_number = callback.data.split(":")[2]
-    details = order_repository.get_order_details(public_number)
-    await callback.answer("Сообщение отправлено.")
-    if details:
-        await callback.message.bot.send_message(
-            details["telegram_id"],
-            f"По заявке {public_number}: менеджер проверяет детали. Доступность слотов зависит от внешних систем, мы сообщим о следующих шагах отдельно.",
-        )
+    await callback.answer()
+    await callback.message.answer(
+        "Выберите шаблон сообщения.",
+        reply_markup=admin_message_templates_keyboard("order", public_number),
+    )
 
 
 @router.callback_query(F.data.startswith("admin:cancel:"))
@@ -442,3 +618,51 @@ async def admin_cancel_order(callback: CallbackQuery) -> None:
     if updated:
         await callback.message.answer(_render_order_details(updated), reply_markup=admin_order_actions_keyboard(public_number))
         await callback.message.bot.send_message(updated["telegram_id"], f"Заявка {public_number} отменена менеджером.")
+
+
+@router.callback_query(F.data.startswith("support:status:"))
+async def support_status_update(callback: CallbackQuery) -> None:
+    if not is_admin(callback.from_user.id, settings):
+        await _deny_callback(callback)
+        return
+    _, _, request_id, status = callback.data.split(":", 3)
+    updated = support_request_repository.update_status(request_id, status)
+    if updated is None:
+        await callback.answer("Запрос не найден.", show_alert=True)
+        return
+    await callback.answer("Статус запроса обновлен.")
+    await callback.message.answer(_render_support_request(updated), reply_markup=support_request_actions_keyboard(request_id))
+
+
+@router.callback_query(F.data.startswith("support:message:"))
+async def support_message(callback: CallbackQuery) -> None:
+    if not is_admin(callback.from_user.id, settings):
+        await _deny_callback(callback)
+        return
+    request_id = callback.data.split(":")[2]
+    await callback.answer()
+    await callback.message.answer(
+        "Выберите шаблон сообщения.",
+        reply_markup=admin_message_templates_keyboard("support", request_id),
+    )
+
+
+@router.callback_query(F.data.startswith("admin:template:"))
+async def admin_template_send(callback: CallbackQuery) -> None:
+    if not is_admin(callback.from_user.id, settings):
+        await _deny_callback(callback)
+        return
+    _, _, target_kind, target_id, template_code = callback.data.split(":", 4)
+    if target_kind == "order":
+        details = order_repository.get_order_details(target_id)
+        if details is None:
+            await callback.answer("Заявка не найдена.", show_alert=True)
+            return
+        await callback.message.bot.send_message(details["telegram_id"], _template_text(template_code, target_id))
+    else:
+        request = support_request_repository.get(target_id)
+        if request is None:
+            await callback.answer("Запрос не найден.", show_alert=True)
+            return
+        await callback.message.bot.send_message(request.telegram_id, _template_text(template_code))
+    await callback.answer("Сообщение отправлено.")

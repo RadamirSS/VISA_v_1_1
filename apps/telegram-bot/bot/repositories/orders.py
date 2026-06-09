@@ -55,13 +55,13 @@ class OrderRepository:
                 INSERT INTO orders (
                   id, public_number, user_id, country_code, country_name_ru, submission_city,
                   provider, visa_purpose, time_window_code, applicants_count, base_price_rub,
-                  additional_applicants_price_rub, discount_rub, total_price_rub, promo_code,
+                  additional_applicants_price_rub, discount_rub, total_price_rub, promo_code, access_key_code, access_key_id,
                   payment_status, order_status, requires_manager_review, manager_note, user_comment,
                   created_at, updated_at
                 ) VALUES (
                   :id, :public_number, :user_id, :country_code, :country_name_ru, :submission_city,
                   :provider, :visa_purpose, :time_window_code, :applicants_count, :base_price_rub,
-                  :additional_applicants_price_rub, :discount_rub, :total_price_rub, :promo_code,
+                  :additional_applicants_price_rub, :discount_rub, :total_price_rub, :promo_code, :access_key_code, :access_key_id,
                   :payment_status, :order_status, :requires_manager_review, :manager_note, :user_comment,
                   :created_at, :updated_at
                 )
@@ -109,7 +109,7 @@ class OrderRepository:
             cursor = connection.execute(
                 """
                 SELECT o.public_number, o.country_name_ru, o.submission_city, o.time_window_code,
-                       o.payment_status, o.order_status, o.created_at
+                       o.payment_status, o.order_status, o.created_at, o.access_key_code
                 FROM orders o
                 JOIN users u ON u.id = o.user_id
                 WHERE u.telegram_id = ?

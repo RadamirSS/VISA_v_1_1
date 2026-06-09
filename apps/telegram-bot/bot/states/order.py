@@ -17,6 +17,7 @@ class RegistrationState(StatesGroup):
 
 
 class AppointmentRequestState(StatesGroup):
+    access_key_entry = State()
     country = State()
     city = State()
     purpose = State()
@@ -32,11 +33,9 @@ class AppointmentRequestState(StatesGroup):
     applicant_relationship = State()
     applicant_passport_number = State()  # Reserved for future secure backend flow. Not used by Telegram UX.
     applicant_passport_expiry = State()  # Reserved for future secure backend flow. Not used by Telegram UX.
+    summary = State()
     promo_question = State()
     promo_entry = State()
-    summary = State()
-    payment = State()
-    payment_confirmation = State()
 
 
 class AdminState(StatesGroup):
@@ -51,3 +50,9 @@ class AdminState(StatesGroup):
     promo_country_codes = State()
     promo_time_window_codes = State()
     promo_note = State()
+    access_key_code = State()
+    access_key_service_type = State()
+    access_key_country = State()
+    access_key_max_applicants = State()
+    access_key_expiration = State()
+    access_key_note = State()

@@ -45,6 +45,8 @@ def test_order_creation_persists_order_and_payment(tmp_path: Path):
             discount_rub=0,
             total_price_rub=14900,
             promo_code=None,
+            access_key_code="VISA-TEST-0001",
+            access_key_id="ak-1",
             payment_status=PaymentStatus.PAID.value,
             order_status=OrderStatus.PAID_WAITING_BOOKING.value,
             requires_manager_review=False,
@@ -59,3 +61,4 @@ def test_order_creation_persists_order_and_payment(tmp_path: Path):
     details = orders.get_order_details(order.public_number)
     assert details is not None
     assert details["payment"]["status"] == PaymentStatus.PAID.value
+    assert details["access_key_code"] == "VISA-TEST-0001"

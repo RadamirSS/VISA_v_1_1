@@ -10,16 +10,19 @@ from bot.keyboards.inline import consent_keyboard
 from bot.keyboards.main import admin_menu_keyboard, main_menu_keyboard, simple_keyboard
 from bot.repositories.users import UserRepository
 from bot.services.access import is_admin
-from bot.states.order import OnboardingState, RegistrationState
+from bot.services.access_keys import normalize_access_key, validate_access_key
+from bot.states.order import AppointmentRequestState, OnboardingState, RegistrationState
 from bot.texts.common import HOW_IT_WORKS, PRIVACY_NOTE
+from bot.repositories.access_keys import AccessKeyRepository
 
 router = Router()
 settings = get_settings()
 user_repository = UserRepository(settings.database_url)
+access_key_repository = AccessKeyRepository(settings.database_url)
 
 def _user_summary_text() -> str:
     return (
-        "Бот помогает оформить заявку на запись, применить промокод, отследить статус и связаться с менеджером.\n\n"
+        "Бот помогает оформить заявку на запись, активировать ключ доступа, отследить статус и связаться с менеджером.\n\n"
         f"{PRIVACY_NOTE}"
     )
 
@@ -39,6 +42,8 @@ async def start_handler(message: Message, state: FSMContext) -> None:
     await message.answer(
         "Здравствуйте! Это основной клиентский бот агентства по визовой поддержке.\n\n"
         f"{_user_summary_text()}\n\n"
+        "Для создания заявки нужен ключ доступа от менеджера агентства.\n"
+        "Если вы уже оплатили услугу или менеджер пригласил вас в бот, нажмите «🔑 Ввести ключ доступа» после регистрации.\n\n"
         "Чтобы продолжить, подтвердите согласие на обработку данных.",
         reply_markup=consent_keyboard(),
     )
@@ -159,6 +164,40 @@ async def registration_email(message: Message, state: FSMContext) -> None:
     user_repository.save(user)
     await state.clear()
     await message.answer(
-        "Профиль сохранен. Теперь можно создать заявку, посмотреть статусы или связаться с менеджером.",
+        "Профиль сохранен. Для создания заявки активируйте ключ доступа от менеджера через кнопку «🔑 Ввести ключ доступа».",
+        reply_markup=main_menu_keyboard(),
+    )
+
+
+@router.message(F.text == "🔑 Ввести ключ доступа")
+async def access_key_entry(message: Message, state: FSMContext) -> None:
+    user = user_repository.get_by_telegram_id(message.from_user.id)
+    if user is None or not user_repository.is_registered(user):
+        await message.answer("Сначала завершите согласие и регистрацию через /start.")
+        return
+    await state.clear()
+    await state.set_state(AppointmentRequestState.access_key_entry)
+    await message.answer("Введите ключ доступа, который вы получили от менеджера.")
+
+
+@router.message(AppointmentRequestState.access_key_entry)
+async def activate_access_key(message: Message, state: FSMContext) -> None:
+    user = user_repository.get_by_telegram_id(message.from_user.id)
+    if user is None:
+        await message.answer("Сначала завершите регистрацию через /start.")
+        return
+    code = normalize_access_key(message.text)
+    access_key = access_key_repository.get_by_code(code)
+    result = validate_access_key(access_key, message.from_user.id)
+    if not result.valid:
+        await message.answer(result.error or "Ключ доступа недействителен.")
+        return
+    activated = access_key_repository.bind_and_activate(code, user.id, message.from_user.id)
+    await state.clear()
+    if activated is None:
+        await message.answer("Не удалось активировать ключ доступа.")
+        return
+    await message.answer(
+        "Ключ доступа активирован. Теперь вы можете создать заявку на запись.",
         reply_markup=main_menu_keyboard(),
     )

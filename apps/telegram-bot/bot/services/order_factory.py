@@ -22,6 +22,8 @@ class OrderInput:
     discount_rub: int
     total_price_rub: int
     promo_code: str | None
+    access_key_code: str | None
+    access_key_id: str | None
     payment_status: str
     order_status: str
     requires_manager_review: bool
@@ -52,6 +54,8 @@ def create_order(data: OrderInput, sequence: int) -> BookingOrder:
         discount_rub=data.discount_rub,
         total_price_rub=data.total_price_rub,
         promo_code=data.promo_code,
+        access_key_code=data.access_key_code,
+        access_key_id=data.access_key_id,
         payment_status=data.payment_status,
         order_status=data.order_status,
         requires_manager_review=data.requires_manager_review,

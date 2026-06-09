@@ -17,8 +17,10 @@ def test_create_order_generates_public_number():
             discount_rub=0,
             total_price_rub=16400,
             promo_code=None,
-            payment_status="pending",
-            order_status="awaiting_payment",
+            access_key_code="VISA-TEST-0001",
+            access_key_id="ak-1",
+            payment_status="paid_offline",
+            order_status="paid_waiting_booking",
             requires_manager_review=False,
         ),
         sequence=123,
@@ -26,3 +28,4 @@ def test_create_order_generates_public_number():
     assert order.public_number.endswith("000123")
     assert order.total_price_rub == 16400
     assert order.manager_note is None
+    assert order.access_key_code == "VISA-TEST-0001"

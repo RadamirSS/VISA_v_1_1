@@ -37,6 +37,8 @@ CREATE TABLE IF NOT EXISTS orders (
   discount_rub INTEGER NOT NULL,
   total_price_rub INTEGER NOT NULL,
   promo_code TEXT,
+  access_key_code TEXT,
+  access_key_id TEXT,
   payment_status TEXT NOT NULL,
   order_status TEXT NOT NULL,
   requires_manager_review INTEGER NOT NULL,
@@ -95,7 +97,39 @@ CREATE TABLE IF NOT EXISTS audit_log (
   after TEXT,
   created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS access_keys (
+  id TEXT PRIMARY KEY,
+  code TEXT NOT NULL UNIQUE,
+  status TEXT NOT NULL,
+  max_uses INTEGER NOT NULL,
+  used_count INTEGER NOT NULL,
+  bound_user_id TEXT,
+  bound_telegram_id INTEGER,
+  country_codes TEXT,
+  service_type TEXT,
+  max_applicants INTEGER,
+  expires_at TEXT,
+  created_by_admin_id INTEGER NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  note TEXT
+);
+CREATE TABLE IF NOT EXISTS support_requests (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  telegram_id INTEGER NOT NULL,
+  username TEXT,
+  message TEXT,
+  status TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
 """
+
+ALTERS = (
+    "ALTER TABLE orders ADD COLUMN access_key_code TEXT",
+    "ALTER TABLE orders ADD COLUMN access_key_id TEXT",
+)
 
 
 def sqlite_path_from_url(database_url: str) -> Path:
@@ -110,6 +144,12 @@ def init_db(database_url: str) -> None:
     connection = sqlite3.connect(path)
     try:
         connection.executescript(SCHEMA)
+        for statement in ALTERS:
+            try:
+                connection.execute(statement)
+            except sqlite3.OperationalError as exc:
+                if "duplicate column name" not in str(exc).lower():
+                    raise
         connection.commit()
     finally:
         connection.close()

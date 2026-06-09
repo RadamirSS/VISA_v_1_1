@@ -9,11 +9,14 @@ from .shared import (
     build_manager_contact_notification,
     country_keyboard,
     ensure_registered,
+    get_user_access_key,
     main_menu_keyboard,
     notify_admins,
     order_repository,
     order_start_text,
     settings,
+    support_request_repository,
+    user_has_valid_access_key,
 )
 
 router = Router()
@@ -25,32 +28,42 @@ async def create_order_entry(message: Message, state: FSMContext) -> None:
     if user is None:
         await message.answer("Сначала завершите согласие и регистрацию через /start.")
         return
+    if not user_has_valid_access_key(message.from_user.id):
+        await message.answer(
+            "Создание заявки доступно после ввода ключа доступа от менеджера. Если вы уже оплатили услугу, запросите ключ у менеджера."
+        )
+        return
+    access_key = get_user_access_key(message.from_user.id)
     await state.clear()
-    await state.update_data(user_id=user.id)
+    await state.update_data(
+        user_id=user.id,
+        access_key_code=access_key.code if access_key else None,
+        access_key_id=access_key.id if access_key else None,
+        service_type=access_key.service_type if access_key else "appointment_request",
+    )
     await state.set_state(AppointmentRequestState.country)
     await message.answer(order_start_text(), reply_markup=country_keyboard())
 
 
 @router.message(F.text == "👤 Связаться с менеджером")
 async def contact_manager(message: Message) -> None:
+    user = ensure_registered(message)
+    if user is None:
+        await message.answer("Сначала завершите согласие и регистрацию через /start.")
+        return
+    support_request = support_request_repository.create(
+        user_id=user.id,
+        telegram_id=message.from_user.id,
+        username=message.from_user.username,
+        message="Клиент запросил связь с менеджером.",
+    )
     await notify_admins(
         message.bot,
         settings,
-        build_manager_contact_notification(message.from_user.id, message.from_user.username),
+        build_manager_contact_notification(message.from_user.id, message.from_user.username)
+        + f"\nЗапрос: {support_request.id}",
     )
-    await message.answer("Менеджер получит запрос на связь и свяжется с вами вручную.", reply_markup=main_menu_keyboard())
-
-
-@router.message(F.text == "🎟 Ввести промокод")
-async def promo_info(message: Message) -> None:
-    await message.answer("Промокод применяется во время создания заявки. Если у вас уже есть код, начните новую заявку через «📝 Создать заявку на запись».")
-
-
-@router.message(F.text == "💳 Оплата")
-async def payment_info(message: Message) -> None:
-    orders = order_repository.list_user_orders(message.from_user.id)
-    pending = [item for item in orders if item["payment_status"] == "pending"]
-    if not pending:
-        await message.answer("Отдельных неоплаченных заявок сейчас нет. Оплата или подтверждение наличными доступны в сценарии создания заявки.")
-        return
-    await message.answer("\n\n".join(f"{item['public_number']} — {item['payment_status']} / {item['order_status']}" for item in pending))
+    await message.answer(
+        "Запрос отправлен менеджеру. Он свяжется с вами в Telegram или через этот бот.",
+        reply_markup=main_menu_keyboard(),
+    )
