@@ -4,11 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 import { AppShell } from "../../../components/AppShell";
-import { CaseTimeline } from "../../../components/CaseTimeline";
+import { StatusTimeline } from "../../../components/StatusTimeline";
 import { ConsulateCard, CountryCard } from "../../../components/CaseSelectionCard";
 import { LoadingState } from "../../../components/LoadingState";
 import { api } from "../../../lib/api";
-import type { CasePayload, ConsulateOption, CountryOption, VisaCase } from "../../../lib/types";
+import type { CasePayload, CaseTimelineResponse, ConsulateOption, CountryOption, VisaCase } from "../../../lib/types";
 
 const travelPurposeOptions = ["Туризм", "Бизнес", "Посещение родственников/друзей", "Учеба / мероприятие", "Медицинская цель", "Другое / уточнить с менеджером"];
 
@@ -18,6 +18,7 @@ export default function NewCasePage() {
   const [consulates, setConsulates] = useState<ConsulateOption[]>([]);
   const [formData, setFormData] = useState<CasePayload>({});
   const [incompleteApplicants, setIncompleteApplicants] = useState<string[]>([]);
+  const [timeline, setTimeline] = useState<CaseTimelineResponse | null>(null);
   const [error, setError] = useState<string>("");
   const [isSaving, setIsSaving] = useState(false);
 
@@ -55,6 +56,21 @@ export default function NewCasePage() {
     }
     void load();
   }, []);
+
+  useEffect(() => {
+    async function loadTimeline() {
+      if (!visaCase) {
+        setTimeline(null);
+        return;
+      }
+      try {
+        setTimeline(await api.getCaseTimeline());
+      } catch {
+        setTimeline(null);
+      }
+    }
+    void loadTimeline();
+  }, [visaCase]);
 
   useEffect(() => {
     async function loadConsulates() {
@@ -109,7 +125,7 @@ export default function NewCasePage() {
           </Link>
         </section>
       ) : null}
-      {visaCase ? <CaseTimeline visaCase={visaCase} /> : null}
+      {timeline ? <StatusTimeline steps={timeline.steps} /> : null}
       {visaCase && !incompleteApplicants.length ? (
         <div className="grid-stack">
           <section className="surface-card">

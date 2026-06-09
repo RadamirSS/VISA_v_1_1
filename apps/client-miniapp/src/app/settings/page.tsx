@@ -2,7 +2,7 @@ import { AppShell } from "../../components/AppShell";
 
 export default function SettingsPage() {
   return (
-    <AppShell title="Настройки" subtitle="Памятка по безопасности и текущим ограничениям Mini App.">
+    <AppShell title="Профиль" subtitle="Памятка по безопасности и текущим ограничениям Mini App.">
       <section className="surface-card">
         <h3>Как мы работаем с данными</h3>
         <ul className="plain-list">

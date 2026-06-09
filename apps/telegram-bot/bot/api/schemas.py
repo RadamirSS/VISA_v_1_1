@@ -210,3 +210,79 @@ class ApplicantResponse(BaseModel):
     preferred_submission_city: Optional[str] = None
     created_at: str
     updated_at: str
+
+
+class NextActionResponse(BaseModel):
+    type: str
+    label: str
+    href: str
+
+
+class CabinetUserSummary(BaseModel):
+    telegram_id: int
+    first_name: Optional[str] = None
+    username: Optional[str] = None
+
+
+class CabinetAccessSummary(BaseModel):
+    active: bool
+    status_label: str
+
+
+class CabinetCaseSummary(BaseModel):
+    id: str
+    public_number: str
+    status: str
+    status_label: str
+    desired_country_name_ru: Optional[str] = None
+    preferred_submission_city: Optional[str] = None
+    submission_provider: Optional[str] = None
+    applicants_count: int
+    next_action: NextActionResponse
+
+
+class CabinetApplicantsSummary(BaseModel):
+    total: int
+    completed: int
+    incomplete: int
+
+
+class AppointmentSelectedSummary(BaseModel):
+    date: Optional[str] = None
+    time: Optional[str] = None
+    city: Optional[str] = None
+    provider: Optional[str] = None
+
+
+class AppointmentConfirmedSummary(BaseModel):
+    date: Optional[str] = None
+    time: Optional[str] = None
+    city: Optional[str] = None
+    provider: Optional[str] = None
+
+
+class CabinetAppointmentSummary(BaseModel):
+    has_options: bool
+    selected: Optional[AppointmentSelectedSummary] = None
+    confirmed: Optional[AppointmentConfirmedSummary] = None
+
+
+class CabinetSummaryResponse(BaseModel):
+    user: CabinetUserSummary
+    access: CabinetAccessSummary
+    case: Optional[CabinetCaseSummary] = None
+    next_action: Optional[NextActionResponse] = None
+    applicants: CabinetApplicantsSummary
+    appointment: CabinetAppointmentSummary
+
+
+class TimelineStepResponse(BaseModel):
+    key: str
+    label: str
+    state: str
+
+
+class CaseTimelineResponse(BaseModel):
+    status: str
+    status_label: str
+    steps: list[TimelineStepResponse]

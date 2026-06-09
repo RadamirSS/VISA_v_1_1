@@ -11,23 +11,41 @@ from bot.api.schemas import (
     ApplicantProfilePayload,
     ApplicantResponse,
     ApplicantsCountPayload,
+    AppointmentConfirmedSummary,
+    AppointmentSelectedSummary,
+    CabinetAccessSummary,
+    CabinetApplicantsSummary,
+    CabinetAppointmentSummary,
+    CabinetCaseSummary,
+    CabinetSummaryResponse,
+    CabinetUserSummary,
     CasePayload,
     CaseResponse,
     CaseSubmitResponse,
+    CaseTimelineResponse,
     ConsulateOptionResponse,
     CountryOptionResponse,
     CreateCaseResponse,
     MeResponse,
+    NextActionResponse,
     SlotOfferResponse,
     SlotOptionResponse,
     TelegramValidationResponse,
+    TimelineStepResponse,
 )
 from bot.config import Settings, get_settings
 from bot.database import init_db
-from bot.models import MiniAppIdentity, User, VisaCaseStatus
+from bot.models import ApplicantProfileStatus, MiniAppIdentity, User, VisaCase, VisaCaseStatus
 from bot.repositories.access_keys import AccessKeyRepository
 from bot.repositories.miniapp import CONSULTATION_COUNTRY_CODE, MiniAppRepository
 from bot.repositories.users import UserRepository
+from bot.services.case_status import (
+    access_status_label,
+    build_case_timeline,
+    case_next_action,
+    case_status_label,
+    format_case_public_number,
+)
 from bot.services.notifications import (
     build_appointment_confirmed_message,
     build_case_submitted_notification,
@@ -80,6 +98,102 @@ def _ensure_user(container: Container, identity: MiniAppIdentity) -> User:
     if user is None:
         user = container.users.upsert_from_telegram(identity.telegram_id, identity.username, identity.first_name, identity.last_name)
     return user
+
+
+def _applicant_counts(container: Container, telegram_id: int) -> CabinetApplicantsSummary:
+    applicants = container.miniapp.list_applicants(telegram_id)
+    completed = sum(1 for item in applicants if item.status == ApplicantProfileStatus.COMPLETED.value)
+    total = len(applicants)
+    return CabinetApplicantsSummary(total=total, completed=completed, incomplete=total - completed)
+
+
+def _has_slot_options(container: Container, telegram_id: int) -> bool:
+    return bool(container.miniapp.list_slot_offers_for_user(telegram_id))
+
+
+def _build_appointment_summary(container: Container, telegram_id: int, visa_case: VisaCase | None) -> CabinetAppointmentSummary:
+    has_options = _has_slot_options(container, telegram_id) if visa_case else False
+    selected = None
+    confirmed = None
+    if visa_case and visa_case.selected_appointment_date:
+        selected = AppointmentSelectedSummary(
+            date=visa_case.selected_appointment_date,
+            time=visa_case.selected_appointment_time,
+            city=visa_case.selected_appointment_city,
+            provider=visa_case.selected_appointment_provider,
+        )
+    if visa_case and visa_case.appointment_confirmed_at:
+        confirmed = AppointmentConfirmedSummary(
+            date=visa_case.selected_appointment_date,
+            time=visa_case.selected_appointment_time,
+            city=visa_case.selected_appointment_city,
+            provider=visa_case.selected_appointment_provider,
+        )
+    return CabinetAppointmentSummary(has_options=has_options, selected=selected, confirmed=confirmed)
+
+
+def _build_cabinet_case_summary(
+    container: Container,
+    identity: MiniAppIdentity,
+    visa_case: VisaCase,
+) -> CabinetCaseSummary:
+    has_slot_options = _has_slot_options(container, identity.telegram_id)
+    has_selected_slot = bool(visa_case.selected_slot_option_id or visa_case.selected_appointment_date)
+    applicants = container.miniapp.list_applicants(identity.telegram_id)
+    return CabinetCaseSummary(
+        id=visa_case.id,
+        public_number=format_case_public_number(visa_case),
+        status=visa_case.status,
+        status_label=case_status_label(visa_case.status),
+        desired_country_name_ru=visa_case.desired_country_name_ru,
+        preferred_submission_city=visa_case.preferred_submission_city,
+        submission_provider=visa_case.submission_provider,
+        applicants_count=visa_case.applicants_count,
+        next_action=NextActionResponse.model_validate(
+            case_next_action(
+                visa_case.status,
+                has_applicants=bool(applicants),
+                has_slot_options=has_slot_options,
+                has_selected_slot=has_selected_slot,
+            )
+        ),
+    )
+
+
+def _build_cabinet_summary(container: Container, identity: MiniAppIdentity) -> CabinetSummaryResponse:
+    access_key = _active_access_code(container, identity.telegram_id)
+    access_active = access_key is not None
+    visa_case = container.miniapp.get_case_for_telegram_user(identity.telegram_id)
+    if access_active and visa_case is not None:
+        visa_case = container.miniapp.refresh_case_status(identity.telegram_id)
+
+    applicants_summary = _applicant_counts(container, identity.telegram_id)
+    appointment = _build_appointment_summary(container, identity.telegram_id, visa_case)
+
+    case_summary = None
+    top_level_next_action = None
+    if access_active and visa_case is not None:
+        case_summary = _build_cabinet_case_summary(container, identity, visa_case)
+    elif not access_active:
+        top_level_next_action = NextActionResponse.model_validate(case_next_action("no_access"))
+    else:
+        top_level_next_action = NextActionResponse.model_validate(case_next_action("no_case"))
+
+    return CabinetSummaryResponse(
+        user=CabinetUserSummary(
+            telegram_id=identity.telegram_id,
+            first_name=identity.first_name,
+            username=identity.username,
+        ),
+        access=CabinetAccessSummary(
+            active=access_active,
+            status_label=access_status_label(access_active),
+        ),
+        case=case_summary,
+        next_action=top_level_next_action,
+        applicants=applicants_summary,
+        appointment=appointment,
+    )
 
 
 async def _notify_if_profiles_completed(container: Container, identity: MiniAppIdentity) -> None:
@@ -186,6 +300,32 @@ async def validate_telegram(identity: MiniAppIdentity = Depends(get_identity)) -
         username=identity.username,
         first_name=identity.first_name,
         last_name=identity.last_name,
+    )
+
+
+@app.get("/api/cabinet/summary", response_model=CabinetSummaryResponse)
+async def cabinet_summary(identity: MiniAppIdentity = Depends(get_identity)) -> CabinetSummaryResponse:
+    container = get_container()
+    return _build_cabinet_summary(container, identity)
+
+
+@app.get("/api/case/current/timeline", response_model=CaseTimelineResponse)
+async def current_case_timeline(identity: MiniAppIdentity = Depends(get_identity)) -> CaseTimelineResponse:
+    container = get_container()
+    _ensure_access_key(container, identity)
+    visa_case = container.miniapp.get_case_for_telegram_user(identity.telegram_id)
+    if visa_case is None:
+        raise HTTPException(status_code=404, detail="У вас пока нет визовой заявки.")
+    visa_case = container.miniapp.refresh_case_status(identity.telegram_id)
+    applicants = container.miniapp.list_applicants(identity.telegram_id)
+    applicants_completed = bool(applicants) and all(
+        item.status == ApplicantProfileStatus.COMPLETED.value for item in applicants
+    )
+    steps = build_case_timeline(visa_case.status, access_active=True, applicants_completed=applicants_completed)
+    return CaseTimelineResponse(
+        status=visa_case.status,
+        status_label=case_status_label(visa_case.status),
+        steps=[TimelineStepResponse.model_validate(step) for step in steps],
     )
 
 

@@ -62,6 +62,8 @@ cd apps/telegram-bot
 uvicorn bot.api.main:app --host 0.0.0.0 --port 8100
 ```
 
+Главная Mini App (`/`) загружает личный кабинет через `GET /api/cabinet/summary` и preview timeline через `GET /api/case/current/timeline`. Статусы и следующие шаги формируются на backend (PR-07D).
+
 Ключевой Mini App flow:
 
 1. Клиент активирует ключ доступа в боте.

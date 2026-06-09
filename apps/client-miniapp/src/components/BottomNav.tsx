@@ -4,11 +4,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const links = [
-  { href: "/", label: "Главная" },
-  { href: "/applicants", label: "Анкеты" },
-  { href: "/case", label: "Заявка" },
-  { href: "/appointment", label: "Даты" },
-  { href: "/settings", label: "Настройки" }
+  { href: "/", label: "Главная", match: (pathname: string) => pathname === "/" },
+  { href: "/applicants", label: "Анкеты", match: (pathname: string) => pathname.startsWith("/applicants") },
+  { href: "/case", label: "Заявка", match: (pathname: string) => pathname.startsWith("/case") },
+  { href: "/appointment", label: "Запись", match: (pathname: string) => pathname.startsWith("/appointment") },
+  { href: "/settings", label: "Профиль", match: (pathname: string) => pathname.startsWith("/settings") }
 ];
 
 export function BottomNav() {
@@ -17,7 +17,7 @@ export function BottomNav() {
   return (
     <nav className="bottom-nav">
       {links.map((link) => (
-        <Link key={link.href} className={pathname === link.href ? "nav-link active" : "nav-link"} href={link.href}>
+        <Link key={link.href} className={link.match(pathname) ? "nav-link active" : "nav-link"} href={link.href}>
           {link.label}
         </Link>
       ))}

@@ -1,48 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
-
 import { AppShell } from "../../components/AppShell";
-import { CaseTimeline } from "../../components/CaseTimeline";
+import { AccessStatusCard } from "../../components/dashboard/AccessStatusCard";
+import { CaseOverviewCard } from "../../components/dashboard/CaseOverviewCard";
 import { LoadingState } from "../../components/LoadingState";
-import { api } from "../../lib/api";
-import type { MeResponse, VisaCase } from "../../lib/types";
+import { StatusTimeline } from "../../components/StatusTimeline";
+import { useCabinetData } from "../../lib/useCabinetData";
 
 export default function StatusPage() {
-  const [me, setMe] = useState<MeResponse | null>(null);
-  const [visaCase, setVisaCase] = useState<VisaCase | null>(null);
-
-  useEffect(() => {
-    async function load() {
-      const meResponse = await api.getMe();
-      setMe(meResponse);
-      if (meResponse.has_active_access && meResponse.has_case) {
-        try {
-          setVisaCase(await api.getCurrentCase());
-        } catch {
-          setVisaCase(null);
-        }
-      }
-    }
-    void load();
-  }, []);
+  const { summary, timeline, error, loading } = useCabinetData();
 
   return (
-    <AppShell title="Статус" subtitle="Этот экран показывает прогресс по вашему текущему кейсу и анкетам.">
-      {!me ? <LoadingState label="Загружаем статус..." /> : null}
-      {me ? (
+    <AppShell title="Статус заявки" subtitle="Полный ход вашей заявки и текущий этап сопровождения.">
+      {loading ? <LoadingState label="Загружаем статус..." /> : null}
+      {error ? <section className="surface-card status-banner">{error}</section> : null}
+      {summary ? (
         <div className="grid-stack">
-          <section className="surface-card">
-            <p className="card-label">Доступ</p>
-            <h3>{me.has_active_access ? "Активирован" : "Не активирован"}</h3>
-            <p className="muted-text">Ключ: {me.active_access_key_code ?? "нет активного ключа"}</p>
-          </section>
-          <section className="surface-card">
-            <p className="card-label">Кейс</p>
-            <h3>{visaCase?.status ?? me.current_case_status ?? "Ожидается"}</h3>
-            <p className="muted-text">Менеджер увидит только обезличенное уведомление о готовности анкет.</p>
-          </section>
-          <CaseTimeline visaCase={visaCase} />
+          <AccessStatusCard access={summary.access} />
+          <CaseOverviewCard summary={summary} />
+          {timeline ? <StatusTimeline steps={timeline.steps} title="Полный статус" /> : null}
         </div>
       ) : null}
     </AppShell>

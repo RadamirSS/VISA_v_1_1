@@ -152,3 +152,67 @@ export type SlotOffer = {
   updated_at: string;
   options: SlotOption[];
 };
+
+export type TimelineStepState = "done" | "current" | "locked" | "warning";
+
+export type TimelineStep = {
+  key: string;
+  label: string;
+  state: TimelineStepState;
+};
+
+export type NextAction = {
+  type: string;
+  label: string;
+  href: string;
+};
+
+export type CaseTimelineResponse = {
+  status: string;
+  status_label: string;
+  steps: TimelineStep[];
+};
+
+export type CabinetSummary = {
+  user: {
+    telegram_id: number;
+    first_name?: string | null;
+    username?: string | null;
+  };
+  access: {
+    active: boolean;
+    status_label: string;
+  };
+  case?: {
+    id: string;
+    public_number: string;
+    status: string;
+    status_label: string;
+    desired_country_name_ru?: string | null;
+    preferred_submission_city?: string | null;
+    submission_provider?: string | null;
+    applicants_count: number;
+    next_action: NextAction;
+  } | null;
+  next_action?: NextAction | null;
+  applicants: {
+    total: number;
+    completed: number;
+    incomplete: number;
+  };
+  appointment: {
+    has_options: boolean;
+    selected: {
+      date?: string | null;
+      time?: string | null;
+      city?: string | null;
+      provider?: string | null;
+    } | null;
+    confirmed: {
+      date?: string | null;
+      time?: string | null;
+      city?: string | null;
+      provider?: string | null;
+    } | null;
+  };
+};

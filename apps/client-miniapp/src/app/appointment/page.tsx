@@ -3,29 +3,40 @@
 import { useEffect, useState } from "react";
 
 import { AppShell } from "../../components/AppShell";
-import { CaseTimeline } from "../../components/CaseTimeline";
+import { AppointmentStatusCard } from "../../components/dashboard/AppointmentStatusCard";
 import { LoadingState } from "../../components/LoadingState";
+import { StatusTimeline } from "../../components/StatusTimeline";
+import { formatAppointmentDate } from "../../lib/cabinet";
 import { api } from "../../lib/api";
-import type { SlotOffer, SlotOption, VisaCase } from "../../lib/types";
-
-function formatOption(option: SlotOption) {
-  const [year, month, day] = option.option_date.split("-");
-  return `${day}.${month}.${year}, ${option.option_time}`;
-}
+import type { CabinetSummary, CaseTimelineResponse, SlotOffer, SlotOption } from "../../lib/types";
 
 export default function AppointmentPage() {
-  const [visaCase, setVisaCase] = useState<VisaCase | null>(null);
+  const [summary, setSummary] = useState<CabinetSummary | null>(null);
+  const [timeline, setTimeline] = useState<CaseTimelineResponse | null>(null);
   const [offers, setOffers] = useState<SlotOffer[]>([]);
   const [error, setError] = useState<string>("");
+  const [loading, setLoading] = useState(true);
   const [selectingId, setSelectingId] = useState<string>("");
 
   async function load() {
+    setLoading(true);
     try {
-      const [caseResponse, offersResponse] = await Promise.all([api.getCurrentCase(), api.getSlotOffers()]);
-      setVisaCase(caseResponse);
+      const summaryResponse = await api.getCabinetSummary();
+      setSummary(summaryResponse);
+      if (!summaryResponse.access.active || !summaryResponse.case) {
+        setError("Для выбора даты нужна активная заявка.");
+        return;
+      }
+      const [offersResponse, timelineResponse] = await Promise.all([
+        api.getSlotOffers(),
+        api.getCaseTimeline().catch(() => null)
+      ]);
       setOffers(offersResponse);
+      setTimeline(timelineResponse);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Не удалось загрузить варианты дат.");
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -36,7 +47,7 @@ export default function AppointmentPage() {
   async function choose(optionId: string) {
     setSelectingId(optionId);
     try {
-      setVisaCase(await api.selectSlotOption(optionId));
+      await api.selectSlotOption(optionId);
       await load();
     } catch (selectError) {
       setError(selectError instanceof Error ? selectError.message : "Не удалось выбрать дату.");
@@ -45,50 +56,39 @@ export default function AppointmentPage() {
     }
   }
 
+  const availableOptions = offers.flatMap((offer) => offer.options).filter((option) => option.status === "available");
+  const hasSelected = Boolean(summary?.appointment.selected?.date);
+  const isConfirmed = Boolean(summary?.appointment.confirmed?.date);
+
   return (
-    <AppShell title="Даты записи" subtitle="Здесь появляются варианты, которые менеджер нашел вручную.">
-      {!visaCase && !error ? <LoadingState label="Загружаем варианты дат..." /> : null}
+    <AppShell title="Запись" subtitle="Здесь появляются варианты, которые менеджер нашел вручную.">
+      {loading ? <LoadingState label="Загружаем варианты дат..." /> : null}
       {error ? <section className="surface-card status-banner">{error}</section> : null}
-      {visaCase ? (
+      {summary ? (
         <div className="grid-stack">
-          {offers.length === 0 && !visaCase.selected_slot_option_id ? (
-            <section className="surface-card">
-              <h3>Менеджер подбирает доступные даты записи</h3>
+          {!isConfirmed && !hasSelected && availableOptions.length === 0 ? (
+            <section className="surface-card dashboard-card">
+              <h3>Менеджер подбирает даты</h3>
               <p className="muted-text">Когда варианты появятся, вы получите уведомление в Telegram.</p>
             </section>
           ) : null}
-          {offers.flatMap((offer) => offer.options).filter((option) => option.status === "available").map((option) => (
-            <section key={option.id} className="surface-card">
-              <h3>{formatOption(option)}</h3>
-              <p className="muted-text">{option.city ?? "Город уточняется"}</p>
-              <p className="muted-text">{option.provider ?? "Провайдер уточняется"}</p>
-              <p className="muted-text">{option.comment ?? "Комментарий менеджера отсутствует"}</p>
-              <button className="primary-button" disabled={selectingId === option.id} onClick={() => choose(option.id)} type="button">
-                Выбрать эту дату
-              </button>
-            </section>
-          ))}
-          {visaCase.selected_slot_option_id ? (
-            <section className="surface-card">
-              <h3>Вы выбрали</h3>
-              <p className="muted-text">
-                {visaCase.selected_appointment_date} {visaCase.selected_appointment_time}
-              </p>
-              <p className="muted-text">Ожидаем финального подтверждения менеджера.</p>
-            </section>
-          ) : null}
-          {visaCase.status === "appointment_confirmed" ? (
-            <section className="surface-card">
-              <h3>Запись подтверждена</h3>
-              <p className="muted-text">
-                {visaCase.selected_appointment_date} {visaCase.selected_appointment_time}
-              </p>
-              <p className="muted-text">
-                {visaCase.selected_appointment_city} · {visaCase.selected_appointment_provider}
-              </p>
-            </section>
-          ) : null}
-          <CaseTimeline visaCase={visaCase} />
+
+          {!isConfirmed && !hasSelected
+            ? availableOptions.map((option: SlotOption) => (
+                <section key={option.id} className="surface-card slot-option-card">
+                  <h3>{formatAppointmentDate(option.option_date, option.option_time)}</h3>
+                  {option.city ? <p className="muted-text">{option.city}</p> : null}
+                  {option.provider ? <p className="muted-text">{option.provider}</p> : null}
+                  <p className="muted-text">{option.comment ?? "Комментарий менеджера"}</p>
+                  <button className="primary-button" disabled={selectingId === option.id} onClick={() => choose(option.id)} type="button">
+                    Выбрать эту дату
+                  </button>
+                </section>
+              ))
+            : null}
+
+          <AppointmentStatusCard appointment={summary.appointment} expanded />
+          {timeline ? <StatusTimeline steps={timeline.steps} /> : null}
         </div>
       ) : null}
     </AppShell>

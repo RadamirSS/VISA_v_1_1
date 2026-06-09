@@ -4,10 +4,11 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { AppShell } from "../../../components/AppShell";
-import { CaseTimeline } from "../../../components/CaseTimeline";
+import { StatusTimeline } from "../../../components/StatusTimeline";
+import { applicantStatusLabel } from "../../../lib/cabinet";
 import { LoadingState } from "../../../components/LoadingState";
 import { api } from "../../../lib/api";
-import type { ApplicantProfile, VisaCase } from "../../../lib/types";
+import type { ApplicantProfile, CaseTimelineResponse, VisaCase } from "../../../lib/types";
 
 function applicantName(applicant: ApplicantProfile) {
   return (
@@ -19,15 +20,21 @@ function applicantName(applicant: ApplicantProfile) {
 export default function ReviewCasePage() {
   const [visaCase, setVisaCase] = useState<VisaCase | null>(null);
   const [applicants, setApplicants] = useState<ApplicantProfile[]>([]);
+  const [timeline, setTimeline] = useState<CaseTimelineResponse | null>(null);
   const [error, setError] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     async function load() {
       try {
-        const [caseResponse, applicantsResponse] = await Promise.all([api.getCurrentCase(), api.listApplicants()]);
+        const [caseResponse, applicantsResponse, timelineResponse] = await Promise.all([
+          api.getCurrentCase(),
+          api.listApplicants(),
+          api.getCaseTimeline().catch(() => null)
+        ]);
         setVisaCase(caseResponse);
         setApplicants(applicantsResponse);
+        setTimeline(timelineResponse);
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : "Не удалось загрузить review.");
       }
@@ -71,12 +78,12 @@ export default function ReviewCasePage() {
             <div className="plain-list">
               {applicants.map((item) => (
                 <p key={item.id}>
-                  {applicantName(item)} — {item.completion_percent}% ({item.status})
+                  {applicantName(item)} — {item.completion_percent}% · {applicantStatusLabel(item.status)}
                 </p>
               ))}
             </div>
           </section>
-          <CaseTimeline visaCase={visaCase} />
+          {timeline ? <StatusTimeline steps={timeline.steps} /> : null}
           <div className="action-bar">
             <button className="primary-button" disabled={isSubmitting} onClick={submit} type="button">
               {isSubmitting ? "Отправляем..." : "Отправить менеджеру"}

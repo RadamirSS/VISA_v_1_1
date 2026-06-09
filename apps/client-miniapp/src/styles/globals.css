@@ -285,6 +285,100 @@ input {
   background: rgba(31, 42, 31, 0.12);
 }
 
+.timeline-item.warning .timeline-dot {
+  background: var(--danger);
+  box-shadow: 0 0 0 4px rgba(181, 66, 66, 0.16);
+}
+
+.timeline-compact .timeline {
+  gap: 10px;
+}
+
+.status-chip {
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.status-chip.active,
+.status-chip.success {
+  background: rgba(22, 116, 90, 0.12);
+  color: var(--brand-strong);
+}
+
+.status-chip.inactive {
+  background: rgba(181, 66, 66, 0.1);
+  color: var(--danger);
+}
+
+.status-chip.warning {
+  background: rgba(242, 177, 74, 0.16);
+  color: #8c5a11;
+}
+
+.dashboard-card {
+  display: grid;
+  gap: 14px;
+}
+
+.next-action-card {
+  border: 1px solid rgba(22, 116, 90, 0.14);
+  background: linear-gradient(180deg, rgba(22, 116, 90, 0.06), rgba(255, 255, 255, 0.92));
+}
+
+.manager-hint-card {
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.case-facts {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.appointment-date {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.progress-bar-block {
+  display: grid;
+  gap: 8px;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(22, 116, 90, 0.12);
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--brand), var(--accent));
+  border-radius: 999px;
+}
+
+.progress-bar-value {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.applicant-meta {
+  margin: 0;
+  color: var(--muted);
+}
+
+.slot-option-card {
+  display: grid;
+  gap: 12px;
+}
+
 .chip.warning {
   color: #8c5a11;
 }

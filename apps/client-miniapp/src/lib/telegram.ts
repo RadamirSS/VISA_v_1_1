@@ -39,3 +39,11 @@ export function setupTelegramWebApp() {
   window.Telegram?.WebApp?.ready?.();
   window.Telegram?.WebApp?.expand?.();
 }
+
+export function closeTelegramMiniApp() {
+  if (typeof window === "undefined") {
+    return;
+  }
+  const webApp = window.Telegram?.WebApp as { close?: () => void } | undefined;
+  webApp?.close?.();
+}

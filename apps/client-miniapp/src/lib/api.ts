@@ -1,7 +1,9 @@
 import type {
   ApplicantPayload,
   ApplicantProfile,
+  CabinetSummary,
   CasePayload,
+  CaseTimelineResponse,
   ConsulateOption,
   CountryOption,
   CreateCaseResponse,
@@ -46,6 +48,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   validateTelegram: () => request<{ ok: boolean; telegram_id: number }>("/api/telegram/validate", { method: "POST" }),
   getMe: () => request<MeResponse>("/api/me"),
+  getCabinetSummary: () => request<CabinetSummary>("/api/cabinet/summary"),
+  getCaseTimeline: () => request<CaseTimelineResponse>("/api/case/current/timeline"),
   listCountries: () => request<CountryOption[]>("/api/config/countries"),
   listConsulates: (countryCode: string) => request<ConsulateOption[]>(`/api/config/consulates?countryCode=${encodeURIComponent(countryCode)}`),
   getCurrentCase: () => request<VisaCase>("/api/case/current"),

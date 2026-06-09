@@ -24,6 +24,7 @@ jobs:
         with:
           version: 9
 
+      # pnpm workspace lockfile lives at repo root; install must run here, not in apps/client-miniapp
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
         working-directory: .
