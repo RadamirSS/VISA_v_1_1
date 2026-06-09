@@ -140,6 +140,23 @@ def build_appointment_confirmed_message(
     )
 
 
+def build_documents_requested_message() -> str:
+    return "Менеджер запросил документы.\nОткройте личный кабинет → Документы."
+
+
+def build_agency_document_ready_message(title: str) -> str:
+    return f"Документ от агентства готов: {title}.\nОткройте личный кабинет → Документы."
+
+
+def build_client_uploaded_notification(case_public_number: str, document_title: str, status: str) -> str:
+    return (
+        "Клиент загрузил документ.\n"
+        f"Кейс: {case_public_number}\n"
+        f"Документ: {document_title}\n"
+        f"Статус: {status}"
+    )
+
+
 async def notify_admins(bot: Bot, settings: Settings, text: str) -> None:
     for admin_id in settings.bot_admin_ids:
         await bot.send_message(admin_id, text)

@@ -57,6 +57,7 @@ export default function AppointmentPage() {
   }
 
   const availableOptions = offers.flatMap((offer) => offer.options).filter((option) => option.status === "available");
+  const hasAvailableOptions = Boolean(summary?.appointment.has_options);
   const hasSelected = Boolean(summary?.appointment.selected?.date);
   const isConfirmed = Boolean(summary?.appointment.confirmed?.date);
 
@@ -66,14 +67,14 @@ export default function AppointmentPage() {
       {error ? <section className="surface-card status-banner">{error}</section> : null}
       {summary ? (
         <div className="grid-stack">
-          {!isConfirmed && !hasSelected && availableOptions.length === 0 ? (
+          {!isConfirmed && !hasSelected && !hasAvailableOptions ? (
             <section className="surface-card dashboard-card">
               <h3>Менеджер подбирает даты</h3>
               <p className="muted-text">Когда варианты появятся, вы получите уведомление в Telegram.</p>
             </section>
           ) : null}
 
-          {!isConfirmed && !hasSelected
+          {!isConfirmed && !hasSelected && hasAvailableOptions
             ? availableOptions.map((option: SlotOption) => (
                 <section key={option.id} className="surface-card slot-option-card">
                   <h3>{formatAppointmentDate(option.option_date, option.option_time)}</h3>

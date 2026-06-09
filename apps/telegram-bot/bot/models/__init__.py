@@ -98,6 +98,56 @@ class AppointmentSlotOptionStatus(StrEnum):
     UNAVAILABLE = "unavailable"
 
 
+class DocumentSourceType(StrEnum):
+    CLIENT_REQUIRED = "client_required"
+    AGENCY_PREPARED = "agency_prepared"
+
+
+class DocumentCategory(StrEnum):
+    INTERNATIONAL_PASSPORT = "international_passport"
+    PHOTO = "photo"
+    BANK_STATEMENT = "bank_statement"
+    INSURANCE_OWN = "insurance_own"
+    EMPLOYMENT_CERTIFICATE = "employment_certificate"
+    STUDENT_CERTIFICATE = "student_certificate"
+    MARRIAGE_CERTIFICATE = "marriage_certificate"
+    CHILD_BIRTH_CERTIFICATE = "child_birth_certificate"
+    PREVIOUS_VISAS = "previous_visas"
+    OTHER_CLIENT_DOCUMENT = "other_client_document"
+    HOTEL_BOOKING = "hotel_booking"
+    TRANSPORT_BOOKING = "transport_booking"
+    INVITATION = "invitation"
+    TRAVEL_PLAN = "travel_plan"
+    FILLED_APPLICATION_FORM = "filled_application_form"
+    APPOINTMENT_CONFIRMATION = "appointment_confirmation"
+    INSURANCE_AGENCY_PREPARED = "insurance_agency_prepared"
+    COVER_LETTER = "cover_letter"
+    OTHER_AGENCY_DOCUMENT = "other_agency_document"
+
+
+class ClientDocumentStatus(StrEnum):
+    REQUESTED = "requested"
+    UPLOADED_BY_CLIENT = "uploaded_by_client"
+    RECEIVED_BY_MANAGER = "received_by_manager"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    NOT_NEEDED = "not_needed"
+
+
+class AgencyDocumentStatus(StrEnum):
+    PLANNED = "planned"
+    PREPARING_BY_AGENCY = "preparing_by_agency"
+    READY_FOR_CLIENT = "ready_for_client"
+    SHARED_WITH_CLIENT = "shared_with_client"
+    NOT_NEEDED = "not_needed"
+
+
+class DocumentFileStatus(StrEnum):
+    ACTIVE = "active"
+    REPLACED = "replaced"
+    DELETED = "deleted"
+
+
 @dataclass(slots=True)
 class User:
     id: str
@@ -373,3 +423,43 @@ class PriceTier:
     price_rub: int
     priority: int
     additional_applicant_price_rub: int
+
+
+@dataclass(slots=True)
+class DocumentItem:
+    id: str
+    case_id: str
+    source_type: str
+    category: str
+    title: str
+    status: str
+    required: bool
+    visible_to_client: bool
+    created_at: str
+    updated_at: str
+    applicant_id: Optional[str] = None
+    description: Optional[str] = None
+    requested_by_admin_id: Optional[int] = None
+    requested_at: Optional[str] = None
+    due_date: Optional[str] = None
+    uploaded_by: Optional[str] = None
+    uploaded_at: Optional[str] = None
+    reviewed_by_admin_id: Optional[int] = None
+    reviewed_at: Optional[str] = None
+    manager_comment: Optional[str] = None
+    client_comment: Optional[str] = None
+
+
+@dataclass(slots=True)
+class DocumentFile:
+    id: str
+    document_item_id: str
+    case_id: str
+    uploaded_by: str
+    original_filename: str
+    storage_path: str
+    status: str
+    created_at: str
+    applicant_id: Optional[str] = None
+    mime_type: Optional[str] = None
+    size_bytes: Optional[int] = None

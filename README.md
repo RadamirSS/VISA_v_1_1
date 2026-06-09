@@ -73,6 +73,9 @@ uvicorn bot.api.main:app --host 0.0.0.0 --port 8100
 5. Менеджер вручную находит возможные даты записи вне системы.
 6. Клиент получает варианты дат и выбирает один.
 7. Менеджер подтверждает финальную запись.
+8. Менеджер запрашивает документы; клиент видит чек-лист в Mini App (`/documents`).
+
+Подробнее: [docs/DOCUMENT_REQUEST_CHECKLIST.md](docs/DOCUMENT_REQUEST_CHECKLIST.md)
 
 Проверка бота:
 
@@ -102,7 +105,7 @@ CI для бота находится в [telegram-bot-ci.yml](/Users/Radamir/Do
 - Telegram-бот не собирает паспортные данные
 - паспортные данные для MVP вводятся только в `apps/client-miniapp` и хранятся только в backend database
 - выбор страны и города подачи загружается из `packages/visa-config`, а не хардкодится во frontend
-- Telegram-бот не собирает сканы документов
+- Telegram-бот не собирает сканы документов через чат; загрузка документов — только через Mini App API (см. `DOCUMENT_UPLOADS_ENABLED`)
 - Telegram-бот не собирает банковские выписки или bank statements
 - Mini App API не должен логировать сырые анкеты, не должен отправлять чувствительные поля в Telegram и в production обязан работать через HTTPS
 - менеджер получает только non-sensitive summary при отправке кейса

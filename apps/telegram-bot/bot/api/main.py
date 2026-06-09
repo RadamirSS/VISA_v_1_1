@@ -3,8 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from aiogram import Bot
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 
 from bot.api.auth import get_identity
 from bot.api.schemas import (
@@ -17,6 +18,7 @@ from bot.api.schemas import (
     CabinetApplicantsSummary,
     CabinetAppointmentSummary,
     CabinetCaseSummary,
+    CabinetDocumentsSummary,
     CabinetSummaryResponse,
     CabinetUserSummary,
     CasePayload,
@@ -26,6 +28,10 @@ from bot.api.schemas import (
     ConsulateOptionResponse,
     CountryOptionResponse,
     CreateCaseResponse,
+    DocumentCommentPayload,
+    DocumentItemResponse,
+    DocumentsListResponse,
+    DocumentUploadResponse,
     MeResponse,
     NextActionResponse,
     SlotOfferResponse,
@@ -37,6 +43,7 @@ from bot.config import Settings, get_settings
 from bot.database import init_db
 from bot.models import ApplicantProfileStatus, MiniAppIdentity, User, VisaCase, VisaCaseStatus
 from bot.repositories.access_keys import AccessKeyRepository
+from bot.repositories.documents import DocumentRepository
 from bot.repositories.miniapp import CONSULTATION_COUNTRY_CODE, MiniAppRepository
 from bot.repositories.users import UserRepository
 from bot.services.case_status import (
@@ -46,9 +53,14 @@ from bot.services.case_status import (
     case_status_label,
     format_case_public_number,
 )
+from bot.services.document_status import can_client_download, can_client_upload, document_status_label
+from bot.services.document_storage import DocumentStorageService
 from bot.services.notifications import (
+    build_agency_document_ready_message,
     build_appointment_confirmed_message,
     build_case_submitted_notification,
+    build_client_uploaded_notification,
+    build_documents_requested_message,
     build_profiles_completed_notification,
     build_slot_selected_notification,
     build_user_case_submitted_message,
@@ -63,9 +75,20 @@ class Container:
     users: UserRepository
     access_keys: AccessKeyRepository
     miniapp: MiniAppRepository
+    documents: DocumentRepository
+    document_storage: DocumentStorageService
 
 
 _container: Container | None = None
+
+
+def _build_document_storage(settings: Settings, documents: DocumentRepository) -> DocumentStorageService:
+    return DocumentStorageService(
+        repository=documents,
+        storage_dir=settings.document_storage_dir,
+        max_file_mb=settings.document_max_file_mb,
+        enabled=settings.document_uploads_enabled,
+    )
 
 
 def get_container() -> Container:
@@ -73,11 +96,14 @@ def get_container() -> Container:
     if _container is None:
         settings = get_settings()
         init_db(settings.database_url)
+        documents = DocumentRepository(settings.database_url)
         _container = Container(
             settings=settings,
             users=UserRepository(settings.database_url),
             access_keys=AccessKeyRepository(settings.database_url),
             miniapp=MiniAppRepository(settings.database_url, repo_root=settings.repo_root),
+            documents=documents,
+            document_storage=_build_document_storage(settings, documents),
         )
     return _container
 
@@ -107,12 +133,20 @@ def _applicant_counts(container: Container, telegram_id: int) -> CabinetApplican
     return CabinetApplicantsSummary(total=total, completed=completed, incomplete=total - completed)
 
 
-def _has_slot_options(container: Container, telegram_id: int) -> bool:
-    return bool(container.miniapp.list_slot_offers_for_user(telegram_id))
+def _has_available_slot_options(container: Container, telegram_id: int) -> bool:
+    return container.miniapp.has_available_slot_options_for_user(telegram_id)
+
+
+def _has_city_selected(visa_case: VisaCase) -> bool:
+    if not visa_case.desired_country_code:
+        return False
+    if visa_case.desired_country_code in {CONSULTATION_COUNTRY_CODE, "OTHER"}:
+        return True
+    return bool(visa_case.preferred_submission_city)
 
 
 def _build_appointment_summary(container: Container, telegram_id: int, visa_case: VisaCase | None) -> CabinetAppointmentSummary:
-    has_options = _has_slot_options(container, telegram_id) if visa_case else False
+    has_options = _has_available_slot_options(container, telegram_id) if visa_case else False
     selected = None
     confirmed = None
     if visa_case and visa_case.selected_appointment_date:
@@ -132,14 +166,64 @@ def _build_appointment_summary(container: Container, telegram_id: int, visa_case
     return CabinetAppointmentSummary(has_options=has_options, selected=selected, confirmed=confirmed)
 
 
+def _build_documents_summary(container: Container, visa_case: VisaCase | None) -> CabinetDocumentsSummary | None:
+    if visa_case is None:
+        return None
+    counts = container.documents.count_summary(visa_case.id)
+    return CabinetDocumentsSummary(
+        has_items=bool(counts["has_items"]),
+        client_pending=int(counts["client_pending"]),
+        client_uploaded=int(counts["client_uploaded"]),
+        agency_in_progress=int(counts["agency_in_progress"]),
+        agency_ready=int(counts["agency_ready"]),
+        agency_shared=int(counts["agency_shared"]),
+    )
+
+
+def _pending_document_uploads(container: Container, visa_case: VisaCase | None) -> int:
+    if visa_case is None:
+        return 0
+    counts = container.documents.count_summary(visa_case.id)
+    return int(counts["client_pending"])
+
+
+def _document_item_response(container: Container, item) -> DocumentItemResponse:
+    has_file = container.documents.has_active_file(item.id)
+    return DocumentItemResponse(
+        id=item.id,
+        source_type=item.source_type,
+        category=item.category,
+        title=item.title,
+        description=item.description,
+        status=item.status,
+        status_label=document_status_label(item),
+        required=item.required,
+        manager_comment=item.manager_comment,
+        client_comment=item.client_comment,
+        can_upload=can_client_upload(item) and container.document_storage.enabled,
+        can_download=can_client_download(item, has_file=has_file),
+        has_file=has_file,
+        uploads_enabled=container.document_storage.enabled,
+    )
+
+
+def _get_current_case(container: Container, identity: MiniAppIdentity) -> VisaCase:
+    _ensure_access_key(container, identity)
+    visa_case = container.miniapp.get_case_for_telegram_user(identity.telegram_id)
+    if visa_case is None:
+        raise HTTPException(status_code=404, detail="У вас пока нет визовой заявки.")
+    return visa_case
+
+
 def _build_cabinet_case_summary(
     container: Container,
     identity: MiniAppIdentity,
     visa_case: VisaCase,
 ) -> CabinetCaseSummary:
-    has_slot_options = _has_slot_options(container, identity.telegram_id)
+    has_slot_options = _has_available_slot_options(container, identity.telegram_id)
     has_selected_slot = bool(visa_case.selected_slot_option_id or visa_case.selected_appointment_date)
     applicants = container.miniapp.list_applicants(identity.telegram_id)
+    pending_docs = _pending_document_uploads(container, visa_case)
     return CabinetCaseSummary(
         id=visa_case.id,
         public_number=format_case_public_number(visa_case),
@@ -155,6 +239,8 @@ def _build_cabinet_case_summary(
                 has_applicants=bool(applicants),
                 has_slot_options=has_slot_options,
                 has_selected_slot=has_selected_slot,
+                has_city_selected=_has_city_selected(visa_case),
+                pending_document_uploads=pending_docs,
             )
         ),
     )
@@ -193,7 +279,22 @@ def _build_cabinet_summary(container: Container, identity: MiniAppIdentity) -> C
         next_action=top_level_next_action,
         applicants=applicants_summary,
         appointment=appointment,
+        documents=_build_documents_summary(container, visa_case),
     )
+
+
+async def _notify_client_uploaded(container: Container, identity: MiniAppIdentity, visa_case: VisaCase, title: str, status: str) -> None:
+    if not container.settings.miniapp_bot_token:
+        return
+    bot = Bot(token=container.settings.miniapp_bot_token)
+    try:
+        await notify_admins(
+            bot,
+            container.settings,
+            build_client_uploaded_notification(format_case_public_number(visa_case), title, status),
+        )
+    finally:
+        await bot.session.close()
 
 
 async def _notify_if_profiles_completed(container: Container, identity: MiniAppIdentity) -> None:
@@ -501,3 +602,129 @@ async def copy_from_primary(applicant_id: str, identity: MiniAppIdentity = Depen
     if profile is None:
         raise HTTPException(status_code=404, detail="Applicant profile not found.")
     return ApplicantResponse.model_validate(profile)
+
+
+@app.get("/api/case/current/documents", response_model=DocumentsListResponse)
+async def current_case_documents(identity: MiniAppIdentity = Depends(get_identity)) -> DocumentsListResponse:
+    container = get_container()
+    visa_case = _get_current_case(container, identity)
+    items = container.documents.list_by_case(visa_case.id, visible_to_client_only=True)
+    return DocumentsListResponse(
+        items=[_document_item_response(container, item) for item in items],
+        uploads_enabled=container.document_storage.enabled,
+    )
+
+
+@app.get("/api/case/current/documents/summary", response_model=CabinetDocumentsSummary)
+async def current_case_documents_summary(identity: MiniAppIdentity = Depends(get_identity)) -> CabinetDocumentsSummary:
+    container = get_container()
+    visa_case = _get_current_case(container, identity)
+    summary = _build_documents_summary(container, visa_case)
+    assert summary is not None
+    return summary
+
+
+@app.post("/api/case/current/documents/{document_id}/upload", response_model=DocumentUploadResponse)
+async def upload_document(
+    document_id: str,
+    file: UploadFile = File(...),
+    identity: MiniAppIdentity = Depends(get_identity),
+) -> DocumentUploadResponse:
+    from io import BytesIO
+
+    container = get_container()
+    if not container.document_storage.enabled:
+        raise HTTPException(status_code=501, detail="Загрузка файлов пока недоступна. Свяжитесь с менеджером.")
+    visa_case = _get_current_case(container, identity)
+    item = container.documents.get_for_case(visa_case.id, document_id)
+    if item is None or not item.visible_to_client:
+        raise HTTPException(status_code=404, detail="Документ не найден.")
+    if not can_client_upload(item):
+        raise HTTPException(status_code=400, detail="Этот документ сейчас нельзя загрузить.")
+
+    content = await file.read()
+    try:
+        container.document_storage.save_upload(
+            case_id=visa_case.id,
+            document_item_id=document_id,
+            uploaded_by=str(identity.telegram_id),
+            filename=file.filename or "upload.bin",
+            content_type=file.content_type,
+            content=BytesIO(content),
+            size_bytes=len(content),
+            applicant_id=item.applicant_id,
+        )
+        updated = container.documents.mark_uploaded_by_client(document_id, str(identity.telegram_id))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    await _notify_client_uploaded(
+        container,
+        identity,
+        visa_case,
+        updated.title,
+        updated.status,
+    )
+    return DocumentUploadResponse(
+        document_id=updated.id,
+        status=updated.status,
+        status_label=document_status_label(updated),
+        has_file=True,
+    )
+
+
+@app.post("/api/case/current/documents/{document_id}/comment", response_model=DocumentItemResponse)
+async def comment_document(
+    document_id: str,
+    payload: DocumentCommentPayload,
+    identity: MiniAppIdentity = Depends(get_identity),
+) -> DocumentItemResponse:
+    container = get_container()
+    visa_case = _get_current_case(container, identity)
+    item = container.documents.get_for_case(visa_case.id, document_id)
+    if item is None or not item.visible_to_client:
+        raise HTTPException(status_code=404, detail="Документ не найден.")
+
+    try:
+        if payload.no_insurance:
+            updated, _ = container.documents.mark_insurance_not_available(
+                visa_case.id,
+                document_id,
+                payload.comment or "У клиента нет своей страховки.",
+            )
+        else:
+            updated = container.documents.add_client_comment(
+                document_id,
+                payload.comment,
+                str(identity.telegram_id),
+            )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return _document_item_response(container, updated)
+
+
+@app.get("/api/case/current/documents/{document_id}/download")
+async def download_document(document_id: str, identity: MiniAppIdentity = Depends(get_identity)) -> FileResponse:
+    container = get_container()
+    visa_case = _get_current_case(container, identity)
+    item = container.documents.get_for_case(visa_case.id, document_id)
+    if item is None or not item.visible_to_client:
+        raise HTTPException(status_code=404, detail="Документ не найден.")
+
+    active_file = container.documents.get_latest_active_file(document_id)
+    has_file = active_file is not None
+    if not can_client_download(item, has_file=has_file):
+        raise HTTPException(status_code=403, detail="Документ пока недоступен для скачивания.")
+
+    assert active_file is not None
+    try:
+        path = container.document_storage.open_file(active_file)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Файл не найден.") from exc
+
+    return FileResponse(
+        path,
+        media_type=active_file.mime_type or "application/octet-stream",
+        filename=active_file.original_filename,
+    )

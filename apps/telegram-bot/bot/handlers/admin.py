@@ -13,12 +13,27 @@ from bot.keyboards.inline import (
     admin_message_templates_keyboard,
     admin_order_actions_keyboard,
     admin_status_keyboard,
+    document_actions_keyboard,
+    document_agency_template_keyboard,
+    document_client_template_keyboard,
+    document_items_keyboard,
+    document_status_keyboard,
     slot_options_keyboard,
     support_request_actions_keyboard,
 )
 from bot.keyboards.main import admin_menu_keyboard, simple_keyboard
-from bot.models import AccessKeyStatus, BookingOrder, OrderStatus, PromoCode, PromoCodeType, SupportRequestStatus
+from bot.models import (
+    AccessKeyStatus,
+    AgencyDocumentStatus,
+    BookingOrder,
+    DocumentCategory,
+    OrderStatus,
+    PromoCode,
+    PromoCodeType,
+    SupportRequestStatus,
+)
 from bot.repositories.access_keys import AccessKeyRepository, new_access_key
+from bot.repositories.documents import DocumentRepository
 from bot.repositories.miniapp import MiniAppRepository
 from bot.repositories.orders import OrderRepository
 from bot.repositories.promos import PromoRepository
@@ -26,8 +41,12 @@ from bot.repositories.support_requests import SupportRequestRepository
 from bot.services.access import deny_admin_callback, deny_admin_message, is_admin
 from bot.services.access_keys import generate_access_key
 from bot.services.booking_provider import MockBookingProvider
+from bot.services.case_status import format_case_public_number
+from bot.services.document_status import document_status_label
 from bot.services.notifications import (
+    build_agency_document_ready_message,
     build_appointment_confirmed_message,
+    build_documents_requested_message,
     build_slot_options_message,
     build_slot_options_sent_to_manager,
     build_slot_selected_notification,
@@ -44,6 +63,7 @@ promo_repository = PromoRepository(settings.database_url)
 access_key_repository = AccessKeyRepository(settings.database_url)
 support_request_repository = SupportRequestRepository(settings.database_url)
 miniapp_repository = MiniAppRepository(settings.database_url, repo_root=settings.repo_root)
+document_repository = DocumentRepository(settings.database_url)
 booking_provider = MockBookingProvider()
 
 
@@ -414,6 +434,324 @@ async def confirm_appointment_step(message: Message, state: FSMContext) -> None:
             visa_case.selected_appointment_provider,
         ),
     )
+
+
+def _render_case_documents(case_id: str) -> str:
+    items = document_repository.list_by_case(case_id)
+    if not items:
+        return f"По кейсу {case_id} документов пока нет."
+    lines = [f"Документы по кейсу {case_id}:"]
+    for item in items:
+        lines.append(f"- {item.title}: {document_status_label(item)} ({item.source_type})")
+    return "\n".join(lines)
+
+
+@router.message(F.text == "📎 Документы по заявке")
+async def documents_entry(message: Message, state: FSMContext) -> None:
+    if not _require_admin(message):
+        await _deny(message)
+        return
+    await state.set_state(AdminState.document_case_id)
+    await message.answer("Введите ID кейса для работы с документами.")
+
+
+@router.message(AdminState.document_case_id)
+async def documents_case_id_step(message: Message, state: FSMContext) -> None:
+    if not _require_admin(message):
+        await _deny(message)
+        return
+    case_id = message.text.strip()
+    visa_case = miniapp_repository.get_case_by_any_id(case_id)
+    if visa_case is None:
+        await message.answer("Кейс не найден. Проверьте ID и попробуйте снова.")
+        return
+    await state.update_data(case_id=case_id, telegram_id=visa_case.telegram_id)
+    await state.set_state(AdminState.document_action)
+    await message.answer(
+        f"Кейс найден: {format_case_public_number(visa_case)}.\nВыберите действие.",
+        reply_markup=document_actions_keyboard(),
+    )
+
+
+@router.callback_query(F.data.startswith("doc:action:"))
+async def document_action_callback(callback: CallbackQuery, state: FSMContext) -> None:
+    if not is_admin(callback.from_user.id, settings):
+        await _deny_callback(callback)
+        return
+    action = callback.data.split(":", 2)[2]
+    data = await state.get_data()
+    case_id = data.get("case_id")
+    if not case_id:
+        await callback.answer("Сначала укажите ID кейса.", show_alert=True)
+        return
+
+    if action == "list":
+        await callback.answer()
+        await callback.message.answer(_render_case_documents(case_id))
+        return
+
+    if action == "request":
+        await callback.answer()
+        await callback.message.answer(
+            "Выберите документ для запроса у клиента.",
+            reply_markup=document_client_template_keyboard(),
+        )
+        return
+
+    if action == "agency":
+        await callback.answer()
+        await callback.message.answer(
+            "Выберите документ, который готовит агентство.",
+            reply_markup=document_agency_template_keyboard(),
+        )
+        return
+
+    if action == "status":
+        items = document_repository.list_by_case(case_id)
+        if not items:
+            await callback.answer("Документов нет.", show_alert=True)
+            return
+        await state.update_data(document_action="status")
+        await callback.answer()
+        await callback.message.answer(
+            "Выберите документ для изменения статуса.",
+            reply_markup=document_items_keyboard(
+                [(item.id, f"{item.title} ({document_status_label(item)})") for item in items],
+                "pickstatus",
+            ),
+        )
+        return
+
+    if action == "comment":
+        items = document_repository.list_by_case(case_id)
+        if not items:
+            await callback.answer("Документов нет.", show_alert=True)
+            return
+        await state.update_data(document_action="comment")
+        await callback.answer()
+        await callback.message.answer(
+            "Выберите документ для комментария.",
+            reply_markup=document_items_keyboard(
+                [(item.id, item.title) for item in items],
+                "pickcomment",
+            ),
+        )
+
+
+@router.callback_query(F.data.startswith("doc:req:"))
+async def document_request_template_callback(callback: CallbackQuery, state: FSMContext) -> None:
+    if not is_admin(callback.from_user.id, settings):
+        await _deny_callback(callback)
+        return
+    category = callback.data.split(":", 2)[2]
+    data = await state.get_data()
+    case_id = data.get("case_id")
+    if not case_id:
+        await callback.answer("Сначала укажите ID кейса.", show_alert=True)
+        return
+
+    if category == DocumentCategory.OTHER_CLIENT_DOCUMENT.value:
+        await state.update_data(pending_category=category, pending_source="client")
+        await state.set_state(AdminState.document_agency_title)
+        await callback.answer()
+        await callback.message.answer("Введите название документа.")
+        return
+
+    await state.update_data(pending_category=category, pending_source="client")
+    await state.set_state(AdminState.document_request_comment)
+    await callback.answer()
+    await callback.message.answer("Добавьте комментарий для клиента или отправьте «-» без комментария.")
+
+
+@router.callback_query(F.data.startswith("doc:agency:"))
+async def document_agency_template_callback(callback: CallbackQuery, state: FSMContext) -> None:
+    if not is_admin(callback.from_user.id, settings):
+        await _deny_callback(callback)
+        return
+    category = callback.data.split(":", 2)[2]
+    data = await state.get_data()
+    case_id = data.get("case_id")
+    telegram_id = data.get("telegram_id")
+    if not case_id:
+        await callback.answer("Сначала укажите ID кейса.", show_alert=True)
+        return
+
+    if category == DocumentCategory.OTHER_AGENCY_DOCUMENT.value:
+        await state.update_data(pending_category=category, pending_source="agency")
+        await state.set_state(AdminState.document_agency_title)
+        await callback.answer()
+        await callback.message.answer("Введите название документа агентства.")
+        return
+
+    try:
+        document_repository.create_agency_item(
+            case_id,
+            category,
+            admin_id=callback.from_user.id,
+        )
+    except ValueError as exc:
+        await callback.answer(str(exc), show_alert=True)
+        return
+
+    await callback.answer("Документ добавлен.")
+    await callback.message.answer(_render_case_documents(case_id), reply_markup=admin_menu_keyboard())
+
+
+@router.message(AdminState.document_agency_title)
+async def document_custom_title_step(message: Message, state: FSMContext) -> None:
+    if not _require_admin(message):
+        await _deny(message)
+        return
+    data = await state.get_data()
+    case_id = data.get("case_id")
+    pending_source = data.get("pending_source")
+    pending_category = data.get("pending_category")
+    custom_title = message.text.strip()
+    if not case_id or not pending_source or not pending_category:
+        await message.answer("Сессия истекла. Начните снова через меню документов.")
+        await state.clear()
+        return
+
+    if pending_source == "client":
+        await state.update_data(custom_title=custom_title)
+        await state.set_state(AdminState.document_request_comment)
+        await message.answer("Добавьте комментарий для клиента или отправьте «-» без комментария.")
+        return
+
+    try:
+        document_repository.create_agency_item(
+            case_id,
+            pending_category,
+            title=custom_title,
+            admin_id=message.from_user.id,
+        )
+    except ValueError as exc:
+        await message.answer(str(exc))
+        return
+    await state.set_state(AdminState.document_action)
+    await message.answer(_render_case_documents(case_id), reply_markup=document_actions_keyboard())
+
+
+@router.message(AdminState.document_request_comment)
+async def document_request_comment_step(message: Message, state: FSMContext) -> None:
+    if not _require_admin(message):
+        await _deny(message)
+        return
+    data = await state.get_data()
+    case_id = data.get("case_id")
+    pending_category = data.get("pending_category")
+    custom_title = data.get("custom_title")
+    telegram_id = data.get("telegram_id")
+    if not case_id or not pending_category:
+        await message.answer("Сессия истекла. Начните снова через меню документов.")
+        await state.clear()
+        return
+
+    comment = None if message.text.strip() == "-" else message.text.strip()
+    try:
+        if custom_title:
+            document_repository.create_custom_client_request(
+                case_id,
+                custom_title,
+                admin_id=message.from_user.id,
+                comment=comment,
+            )
+        else:
+            document_repository.create_client_request(
+                case_id,
+                pending_category,
+                admin_id=message.from_user.id,
+                comment=comment,
+            )
+    except ValueError as exc:
+        await message.answer(str(exc))
+        return
+
+    await state.set_state(AdminState.document_action)
+    await message.answer(_render_case_documents(case_id), reply_markup=document_actions_keyboard())
+    if telegram_id:
+        await message.bot.send_message(telegram_id, build_documents_requested_message())
+
+
+@router.callback_query(F.data.startswith("doc:pickstatus:"))
+async def document_pick_status_callback(callback: CallbackQuery, state: FSMContext) -> None:
+    if not is_admin(callback.from_user.id, settings):
+        await _deny_callback(callback)
+        return
+    document_id = callback.data.split(":", 2)[2]
+    item = document_repository.get_by_id(document_id)
+    if item is None:
+        await callback.answer("Документ не найден.", show_alert=True)
+        return
+    await state.update_data(document_id=document_id)
+    await callback.answer()
+    await callback.message.answer(
+        f"Новый статус для «{item.title}»:",
+        reply_markup=document_status_keyboard(item.source_type),
+    )
+
+
+@router.callback_query(F.data.startswith("doc:setstatus:"))
+async def document_set_status_callback(callback: CallbackQuery, state: FSMContext) -> None:
+    if not is_admin(callback.from_user.id, settings):
+        await _deny_callback(callback)
+        return
+    status = callback.data.split(":", 2)[2]
+    data = await state.get_data()
+    document_id = data.get("document_id")
+    case_id = data.get("case_id")
+    telegram_id = data.get("telegram_id")
+    if not document_id:
+        await callback.answer("Сначала выберите документ.", show_alert=True)
+        return
+    try:
+        updated = document_repository.update_status(document_id, status, admin_id=callback.from_user.id)
+    except ValueError as exc:
+        await callback.answer(str(exc), show_alert=True)
+        return
+    await callback.answer("Статус обновлён.")
+    if case_id:
+        await callback.message.answer(_render_case_documents(case_id))
+    if telegram_id and updated.source_type == "agency_prepared" and status == AgencyDocumentStatus.READY_FOR_CLIENT.value:
+        await callback.message.bot.send_message(
+            telegram_id,
+            build_agency_document_ready_message(updated.title),
+        )
+
+
+@router.callback_query(F.data.startswith("doc:pickcomment:"))
+async def document_pick_comment_callback(callback: CallbackQuery, state: FSMContext) -> None:
+    if not is_admin(callback.from_user.id, settings):
+        await _deny_callback(callback)
+        return
+    document_id = callback.data.split(":", 2)[2]
+    await state.update_data(document_id=document_id)
+    await state.set_state(AdminState.document_comment_text)
+    await callback.answer()
+    await callback.message.answer("Введите комментарий для клиента.")
+
+
+@router.message(AdminState.document_comment_text)
+async def document_comment_text_step(message: Message, state: FSMContext) -> None:
+    if not _require_admin(message):
+        await _deny(message)
+        return
+    data = await state.get_data()
+    document_id = data.get("document_id")
+    case_id = data.get("case_id")
+    if not document_id:
+        await message.answer("Сначала выберите документ.")
+        return
+    try:
+        document_repository.add_manager_comment(document_id, message.text.strip(), message.from_user.id)
+    except ValueError as exc:
+        await message.answer(str(exc))
+        return
+    await state.set_state(AdminState.document_action)
+    if case_id:
+        await message.answer(_render_case_documents(case_id), reply_markup=document_actions_keyboard())
+    else:
+        await message.answer("Комментарий сохранён.", reply_markup=admin_menu_keyboard())
 
 
 @router.message(F.text == "🔑 Создать ключ доступа")

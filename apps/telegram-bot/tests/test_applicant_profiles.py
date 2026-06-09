@@ -5,38 +5,13 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from bot.api import main as api_main
-from bot.database import init_db
-from bot.repositories.access_keys import AccessKeyRepository, new_access_key
-from bot.repositories.users import UserRepository
+from bot.repositories.access_keys import new_access_key
+from fastapi.testclient import TestClient
+from tests.conftest import build_api_container
 
 
 def build_client(tmp_path: Path) -> tuple[TestClient, str]:
-    database_url = f"sqlite+aiosqlite:///{tmp_path / 'applicant-profiles.db'}"
-    init_db(database_url)
-    api_main._container = api_main.Container(
-        settings=api_main.Settings(
-            bot_token="",
-            bot_admin_ids=[],
-            database_url=database_url,
-            client_miniapp_url="http://localhost:3001",
-            miniapp_bot_token="",
-            miniapp_allowed_origin="http://localhost:3001",
-            miniapp_dev_auth=True,
-            payment_provider="mock",
-            payment_provider_token="",
-            booking_api_base_url="",
-            booking_api_token="",
-            enable_sensitive_fields=False,
-            sensitive_data_encryption_key="",
-            default_currency="RUB",
-            root_dir=Path.cwd(),
-            repo_root=Path.cwd(),
-        ),
-        users=UserRepository(database_url),
-        access_keys=AccessKeyRepository(database_url),
-        miniapp=api_main.MiniAppRepository(database_url),
-    )
-    container = api_main.get_container()
+    container = build_api_container(tmp_path, database_name="applicant-profiles.db")
     user = container.users.upsert_from_telegram(3003, "group", "Mini", "App")
     access_key = new_access_key("GROUP-3003", 1, "miniapp", [], 3, None, None)
     container.access_keys.save(access_key)

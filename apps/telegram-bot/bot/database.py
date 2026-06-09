@@ -217,6 +217,42 @@ CREATE TABLE IF NOT EXISTS applicant_profiles (
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS document_items (
+  id TEXT PRIMARY KEY,
+  case_id TEXT NOT NULL,
+  applicant_id TEXT,
+  source_type TEXT NOT NULL,
+  category TEXT NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT,
+  status TEXT NOT NULL,
+  required INTEGER NOT NULL,
+  visible_to_client INTEGER NOT NULL,
+  requested_by_admin_id INTEGER,
+  requested_at TEXT,
+  due_date TEXT,
+  uploaded_by TEXT,
+  uploaded_at TEXT,
+  reviewed_by_admin_id INTEGER,
+  reviewed_at TEXT,
+  manager_comment TEXT,
+  client_comment TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS document_files (
+  id TEXT PRIMARY KEY,
+  document_item_id TEXT NOT NULL,
+  case_id TEXT NOT NULL,
+  applicant_id TEXT,
+  uploaded_by TEXT NOT NULL,
+  original_filename TEXT NOT NULL,
+  storage_path TEXT NOT NULL,
+  mime_type TEXT,
+  size_bytes INTEGER,
+  status TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
 """
 
 ALTERS = (

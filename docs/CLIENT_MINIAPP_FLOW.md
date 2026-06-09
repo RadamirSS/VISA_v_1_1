@@ -43,6 +43,9 @@ Mini App становится главным клиентским кабинет
 9. Получает варианты дат в Telegram и в `/appointment`.
 10. Выбирает одну дату.
 11. Ждет финального подтверждения менеджера.
+12. Открывает `/documents` для чек-листа документов (загрузка от клиента и статусы документов агентства).
+
+Нижняя навигация: **Главная · Анкеты · Заявка · Запись · Документы**. Настройки доступны по ссылке на главной (`/settings`).
 
 ## Telegram initData auth
 
@@ -76,8 +79,10 @@ Mini App показывает предупреждение для `needs_verific
 
 - нет real booking integration
 - нет online payment integration
-- нет document upload
+- document upload через Mini App API доступен только при `DOCUMENT_UPLOADS_ENABLED=true` (локальное хранилище для MVP)
 - нет PDF generation
 - нет manager dashboard
 - SQLite используется только как MVP storage
 - выбранная дата не считается финально подтвержденной, пока менеджер не подтвердит запись
+
+См. также [DOCUMENT_REQUEST_CHECKLIST.md](DOCUMENT_REQUEST_CHECKLIST.md).

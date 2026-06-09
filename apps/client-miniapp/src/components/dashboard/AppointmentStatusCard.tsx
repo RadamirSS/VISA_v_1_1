@@ -64,8 +64,8 @@ export function AppointmentStatusCard({ appointment, expanded = false }: Appoint
   return (
     <section className="surface-card dashboard-card">
       <p className="card-label">Запись</p>
-      <h3>Даты пока не отправлены</h3>
-      <p className="muted-text">Менеджер подберет варианты вручную и пришлет их вам.</p>
+      <h3>Менеджер подбирает даты</h3>
+      <p className="muted-text">Когда варианты появятся, вы получите уведомление в Telegram.</p>
       {expanded ? (
         <Link className="secondary-button" href="/appointment">
           Открыть раздел записи

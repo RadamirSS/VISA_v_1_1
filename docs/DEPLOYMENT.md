@@ -16,6 +16,14 @@
 - `MINIAPP_ALLOWED_ORIGIN`
 - `MINIAPP_DEV_AUTH=false` в production
 
+## Document upload env (optional MVP)
+
+- `DOCUMENT_UPLOADS_ENABLED=false` по умолчанию
+- `DOCUMENT_STORAGE_DIR=./storage/documents`
+- `DOCUMENT_MAX_FILE_MB=15`
+
+См. [DOCUMENT_REQUEST_CHECKLIST.md](DOCUMENT_REQUEST_CHECKLIST.md).
+
 ## Production notes
 
 - Mini App и API публикуются только через HTTPS
@@ -25,6 +33,7 @@
 - нужен access control для manager-side tooling
 - нельзя логировать applicant payloads
 - нельзя отправлять passport/document/bank data в Telegram
+- document files for MVP are stored locally under `apps/telegram-bot/storage/documents/` when upload is enabled; production requires object storage, encryption, ACL, backups, retention, audit logging
 - нет прямой интеграции с внешними booking API: менеджерские слоты вводятся вручную
 
 ## Local verification

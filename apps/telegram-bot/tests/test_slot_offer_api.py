@@ -2,38 +2,16 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi.testclient import TestClient
-
 from bot.api import main as api_main
-from bot.database import init_db
 from bot.models import VisaCaseStatus
-from bot.repositories.access_keys import AccessKeyRepository, new_access_key
-from bot.repositories.miniapp import MiniAppRepository
-from bot.repositories.users import UserRepository
+from bot.repositories.access_keys import new_access_key
 from bot.services.slot_offers import ParsedSlotOption
+from fastapi.testclient import TestClient
+from tests.conftest import build_api_container
 
 
 def build_client(tmp_path: Path) -> TestClient:
-    database_url = f"sqlite+aiosqlite:///{tmp_path / 'slot-offer-api.db'}"
-    repo_root = Path(__file__).resolve().parents[3]
-    init_db(database_url)
-    api_main._container = api_main.Container(
-        settings=api_main.Settings(
-            bot_token="",
-            bot_admin_ids=[],
-            database_url=database_url,
-            client_miniapp_url="http://localhost:3001",
-            miniapp_bot_token="",
-            miniapp_allowed_origin="http://localhost:3001",
-            miniapp_dev_auth=True,
-            repo_root=repo_root,
-            root_dir=repo_root / "apps" / "telegram-bot",
-        ),
-        users=UserRepository(database_url),
-        access_keys=AccessKeyRepository(database_url),
-        miniapp=MiniAppRepository(database_url, repo_root=repo_root),
-    )
-    container = api_main.get_container()
+    container = build_api_container(tmp_path, database_name="slot-offer-api.db")
     user = container.users.upsert_from_telegram(9300, "apiuser", "Api", "User")
     key = new_access_key("API-KEY", 1, "miniapp", [], 2, None, None)
     container.access_keys.save(key)

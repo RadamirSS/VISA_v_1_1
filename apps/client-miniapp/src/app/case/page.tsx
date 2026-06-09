@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { AppShell } from "../../components/AppShell";
 import { AppointmentStatusCard } from "../../components/dashboard/AppointmentStatusCard";
+import { DocumentsSummaryCard } from "../../components/dashboard/DocumentsSummaryCard";
 import { NextActionCard } from "../../components/dashboard/NextActionCard";
 import { EmptyState } from "../../components/EmptyState";
 import { LoadingState } from "../../components/LoadingState";
@@ -74,6 +75,7 @@ export default function CasePage() {
               <span className="status-chip success">{summary.case.status_label}</span>
             </div>
           </section>
+          {summary.documents ? <DocumentsSummaryCard documents={summary.documents} expanded /> : null}
           <NextActionCard summary={summary} />
           <AppointmentStatusCard appointment={summary.appointment} expanded />
           {timeline ? <StatusTimeline steps={timeline.steps} /> : null}

@@ -20,8 +20,9 @@ Home dashboard cards:
 3. **Next action** — label + link from backend (`next_action.href`)
 4. **Applicants** — `Заполнено: X из Y` + progress bar
 5. **Appointment** — no options / options available / selected / confirmed
-6. **Manager hint** — legal-safe copy, no guarantees
-7. **Timeline preview** — 4–6 steps around current stage, link to `/status`
+6. **Documents** — counts for client-required and agency-prepared items (no filenames)
+7. **Manager hint** — legal-safe copy, no guarantees
+8. **Timeline preview** — 4–6 steps around current stage, link to `/status`
 
 ## Timeline states
 
@@ -46,17 +47,22 @@ Examples from backend:
 | Выберите страну и город подачи | `/case` |
 | Ожидайте проверки менеджера | `/status` |
 | Выберите удобную дату | `/appointment` |
+| Загрузите запрошенные документы | `/documents` |
 
 When no access or no case, top-level `summary.next_action` is used.
 
 ## Appointment display
 
+`appointment.has_options` means the current case has at least one slot option with status `available`. Options with status `selected`, `expired`, `cancelled`, or `unavailable` are not counted.
+
 | State | Copy |
 |-------|------|
-| No options | Manager is searching dates manually |
-| Options sent | Choose a convenient date |
+| No available options | Manager is searching dates manually |
+| Available options exist | Choose a convenient date |
 | Selected | Awaiting manager confirmation |
 | Confirmed | Appointment confirmed with date, city, provider |
+
+Next action uses the same rule: `select_slot` is returned only when status is `slot_options_sent` and at least one available option exists.
 
 ## Applicant progress
 

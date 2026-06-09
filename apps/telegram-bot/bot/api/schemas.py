@@ -267,6 +267,15 @@ class CabinetAppointmentSummary(BaseModel):
     confirmed: Optional[AppointmentConfirmedSummary] = None
 
 
+class CabinetDocumentsSummary(BaseModel):
+    has_items: bool
+    client_pending: int
+    client_uploaded: int
+    agency_in_progress: int
+    agency_ready: int
+    agency_shared: int = 0
+
+
 class CabinetSummaryResponse(BaseModel):
     user: CabinetUserSummary
     access: CabinetAccessSummary
@@ -274,6 +283,41 @@ class CabinetSummaryResponse(BaseModel):
     next_action: Optional[NextActionResponse] = None
     applicants: CabinetApplicantsSummary
     appointment: CabinetAppointmentSummary
+    documents: Optional[CabinetDocumentsSummary] = None
+
+
+class DocumentItemResponse(BaseModel):
+    id: str
+    source_type: str
+    category: str
+    title: str
+    description: Optional[str] = None
+    status: str
+    status_label: str
+    required: bool
+    manager_comment: Optional[str] = None
+    client_comment: Optional[str] = None
+    can_upload: bool
+    can_download: bool
+    has_file: bool
+    uploads_enabled: bool
+
+
+class DocumentsListResponse(BaseModel):
+    items: list[DocumentItemResponse]
+    uploads_enabled: bool
+
+
+class DocumentCommentPayload(BaseModel):
+    comment: str
+    no_insurance: bool = False
+
+
+class DocumentUploadResponse(BaseModel):
+    document_id: str
+    status: str
+    status_label: str
+    has_file: bool
 
 
 class TimelineStepResponse(BaseModel):

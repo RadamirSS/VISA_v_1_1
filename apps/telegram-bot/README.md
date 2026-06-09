@@ -19,6 +19,7 @@
 - менеджерское меню с очередью заявок, поиском, ключами доступа, запросами клиентов, статусами, промокодами и статистикой
 - `📥 Новые заявки` показывает как обычные order-based заявки, так и submitted Mini App visa cases
 - менеджер может быстро вставить варианты дат через `📅 Отправить даты`
+- менеджер управляет документами по кейсу через `📎 Документы по заявке`
 
 ## Безопасность и ограничения
 
@@ -51,6 +52,9 @@
 - `MINIAPP_BOT_TOKEN`
 - `MINIAPP_ALLOWED_ORIGIN`
 - `MINIAPP_DEV_AUTH`
+- `DOCUMENT_UPLOADS_ENABLED`
+- `DOCUMENT_STORAGE_DIR`
+- `DOCUMENT_MAX_FILE_MB`
 - `ENABLE_SENSITIVE_FIELDS`
 - `SENSITIVE_DATA_ENCRYPTION_KEY`
 - `DEFAULT_CURRENCY`

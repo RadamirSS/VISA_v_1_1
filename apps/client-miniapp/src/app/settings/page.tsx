@@ -13,7 +13,10 @@ export default function SettingsPage() {
       </section>
       <section className="surface-card">
         <h3>Текущий этап MVP</h3>
-        <p className="muted-text">В этом PR нет оплаты, загрузки документов, PDF и менеджерского интерфейса. Мы строим только основу клиентского кабинета.</p>
+        <p className="muted-text">
+          Доступен чек-лист документов в разделе «Документы». Загрузка файлов зависит от настроек backend. Оплата, PDF и
+          полноценный менеджерский интерфейс пока не реализованы.
+        </p>
       </section>
     </AppShell>
   );

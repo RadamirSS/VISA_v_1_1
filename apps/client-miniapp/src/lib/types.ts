@@ -215,4 +215,36 @@ export type CabinetSummary = {
       provider?: string | null;
     } | null;
   };
+  documents?: CabinetDocumentsSummary | null;
+};
+
+export type CabinetDocumentsSummary = {
+  has_items: boolean;
+  client_pending: number;
+  client_uploaded: number;
+  agency_in_progress: number;
+  agency_ready: number;
+  agency_shared: number;
+};
+
+export type DocumentItem = {
+  id: string;
+  source_type: "client_required" | "agency_prepared";
+  category: string;
+  title: string;
+  description?: string | null;
+  status: string;
+  status_label: string;
+  required: boolean;
+  manager_comment?: string | null;
+  client_comment?: string | null;
+  can_upload: boolean;
+  can_download: boolean;
+  has_file: boolean;
+  uploads_enabled: boolean;
+};
+
+export type DocumentsListResponse = {
+  items: DocumentItem[];
+  uploads_enabled: boolean;
 };

@@ -21,6 +21,9 @@ class Settings:
     booking_api_token: str = ""
     enable_sensitive_fields: bool = False
     sensitive_data_encryption_key: str = ""
+    document_uploads_enabled: bool = False
+    document_storage_dir: Path = Path("./storage/documents")
+    document_max_file_mb: int = 15
     default_currency: str = "RUB"
     root_dir: Path = Path(".")
     repo_root: Path = Path(".")
@@ -53,6 +56,9 @@ def get_settings() -> Settings:
         booking_api_token=os.getenv("BOOKING_API_TOKEN", ""),
         enable_sensitive_fields=parse_bool(os.getenv("ENABLE_SENSITIVE_FIELDS"), False),
         sensitive_data_encryption_key=os.getenv("SENSITIVE_DATA_ENCRYPTION_KEY", ""),
+        document_uploads_enabled=parse_bool(os.getenv("DOCUMENT_UPLOADS_ENABLED"), False),
+        document_storage_dir=Path(os.getenv("DOCUMENT_STORAGE_DIR", str(root_dir / "storage" / "documents"))),
+        document_max_file_mb=int(os.getenv("DOCUMENT_MAX_FILE_MB", "15")),
         default_currency=os.getenv("DEFAULT_CURRENCY", "RUB"),
         root_dir=root_dir,
         repo_root=repo_root,

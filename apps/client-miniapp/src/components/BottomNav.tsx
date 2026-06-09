@@ -8,7 +8,7 @@ const links = [
   { href: "/applicants", label: "Анкеты", match: (pathname: string) => pathname.startsWith("/applicants") },
   { href: "/case", label: "Заявка", match: (pathname: string) => pathname.startsWith("/case") },
   { href: "/appointment", label: "Запись", match: (pathname: string) => pathname.startsWith("/appointment") },
-  { href: "/settings", label: "Профиль", match: (pathname: string) => pathname.startsWith("/settings") }
+  { href: "/documents", label: "Документы", match: (pathname: string) => pathname.startsWith("/documents") }
 ];
 
 export function BottomNav() {

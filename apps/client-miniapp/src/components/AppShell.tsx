@@ -31,7 +31,11 @@ export function AppShell({
           <Link className="ghost-button" href="/">
             На главную
           </Link>
-        ) : null}
+        ) : (
+          <Link className="ghost-button" href="/settings">
+            Настройки
+          </Link>
+        )}
       </header>
       <main className="page-content">{children}</main>
       <BottomNav />

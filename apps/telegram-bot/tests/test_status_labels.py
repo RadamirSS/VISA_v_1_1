@@ -21,11 +21,52 @@ def test_unknown_status_returns_safe_fallback() -> None:
     assert case_status_label("totally_unknown_status") != "totally_unknown_status"
 
 
-def test_case_next_action_for_key_statuses() -> None:
-    slot_action = case_next_action(VisaCaseStatus.SLOT_OPTIONS_SENT.value)
-    assert slot_action["type"] == "select_slot"
-    assert slot_action["href"] == "/appointment"
+def test_slot_options_sent_with_available_options_returns_select_slot() -> None:
+    action = case_next_action(VisaCaseStatus.SLOT_OPTIONS_SENT.value, has_applicants=True, has_slot_options=True)
+    assert action["type"] == "select_slot"
+    assert action["href"] == "/appointment"
 
+
+def test_slot_options_sent_without_available_options_does_not_return_select_slot() -> None:
+    action = case_next_action(VisaCaseStatus.SLOT_OPTIONS_SENT.value, has_applicants=True, has_slot_options=False)
+    assert action["type"] != "select_slot"
+    assert action["type"] == "wait_manager"
+    assert action["label"] == "Менеджер подбирает даты"
+
+
+def test_selected_slot_returns_wait_confirmation() -> None:
+    action = case_next_action(
+        VisaCaseStatus.SLOT_SELECTED_BY_CLIENT.value,
+        has_applicants=True,
+        has_selected_slot=True,
+    )
+    assert action["type"] == "wait_confirmation"
+    assert action["href"] == "/status"
+
+
+def test_confirmed_appointment_returns_view_appointment() -> None:
+    action = case_next_action(VisaCaseStatus.APPOINTMENT_CONFIRMED.value, has_applicants=True)
+    assert action["type"] == "view_appointment"
+    assert action["href"] == "/appointment"
+
+
+def test_no_applicants_points_to_applicants() -> None:
+    action = case_next_action(VisaCaseStatus.PROFILES_IN_PROGRESS.value, has_applicants=False)
+    assert action["type"] == "fill_profiles"
+    assert action["href"] == "/applicants"
+
+
+def test_no_city_selected_points_to_case() -> None:
+    action = case_next_action(
+        VisaCaseStatus.PROFILES_COMPLETED.value,
+        has_applicants=True,
+        has_city_selected=False,
+    )
+    assert action["type"] == "select_city"
+    assert action["href"] == "/case"
+
+
+def test_case_next_action_for_key_statuses() -> None:
     no_access = case_next_action("no_access")
     assert no_access["type"] == "enter_access_key"
 

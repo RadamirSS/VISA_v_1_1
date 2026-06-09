@@ -590,6 +590,17 @@ class MiniAppRepository:
             return []
         return self.list_slot_offers_for_case(visa_case.id)
 
+    def list_available_slot_options_for_user(self, telegram_id: int) -> list[AppointmentSlotOption]:
+        available: list[AppointmentSlotOption] = []
+        for _, options in self.list_slot_offers_for_user(telegram_id):
+            for option in options:
+                if option.status == AppointmentSlotOptionStatus.AVAILABLE.value:
+                    available.append(option)
+        return available
+
+    def has_available_slot_options_for_user(self, telegram_id: int) -> bool:
+        return bool(self.list_available_slot_options_for_user(telegram_id))
+
     def select_slot_option_for_user(self, telegram_id: int, option_id: str) -> tuple[VisaCase, AppointmentSlotOption]:
         visa_case = self.get_case_for_telegram_user(telegram_id)
         if visa_case is None:

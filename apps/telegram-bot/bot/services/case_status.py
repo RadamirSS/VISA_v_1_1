@@ -85,9 +85,9 @@ def case_next_action(
     has_applicants: bool = False,
     has_slot_options: bool = False,
     has_selected_slot: bool = False,
+    has_city_selected: bool = False,
+    pending_document_uploads: int = 0,
 ) -> dict[str, str]:
-    del has_applicants, has_slot_options, has_selected_slot
-
     if status == "no_access":
         return {
             "type": "enter_access_key",
@@ -99,6 +99,81 @@ def case_next_action(
             "type": "create_case",
             "label": "Создайте заявку",
             "href": "/case/new",
+        }
+
+    if status == VisaCaseStatus.CANCELLED.value:
+        return {
+            "type": "terminal",
+            "label": "Заявка отменена",
+            "href": "/status",
+        }
+    if status == VisaCaseStatus.CLOSED.value:
+        return {
+            "type": "terminal",
+            "label": "Заявка закрыта",
+            "href": "/status",
+        }
+    if status == VisaCaseStatus.APPOINTMENT_CONFIRMED.value:
+        if pending_document_uploads > 0:
+            return {
+                "type": "upload_documents",
+                "label": "Загрузите запрошенные документы",
+                "href": "/documents",
+            }
+        return {
+            "type": "view_appointment",
+            "label": "Запись подтверждена",
+            "href": "/appointment",
+        }
+    if has_selected_slot or status in {
+        VisaCaseStatus.SLOT_SELECTED_BY_CLIENT.value,
+        VisaCaseStatus.APPOINTMENT_CONFIRMATION_PENDING.value,
+    }:
+        return {
+            "type": "wait_confirmation",
+            "label": "Ожидайте подтверждения менеджера",
+            "href": "/status",
+        }
+    if pending_document_uploads > 0 and status in {
+        VisaCaseStatus.SUBMITTED_FOR_MANAGER_REVIEW.value,
+        VisaCaseStatus.WAITING_MANAGER_REVIEW.value,
+        VisaCaseStatus.MANAGER_REVIEWING.value,
+        VisaCaseStatus.READY_FOR_SLOT_SEARCH.value,
+        VisaCaseStatus.SLOT_OPTIONS_SENT.value,
+        VisaCaseStatus.NEEDS_CLARIFICATION.value,
+    }:
+        return {
+            "type": "upload_documents",
+            "label": "Загрузите запрошенные документы",
+            "href": "/documents",
+        }
+    if not has_applicants:
+        return {
+            "type": "fill_profiles",
+            "label": "Заполните анкеты заявителей",
+            "href": "/applicants",
+        }
+    if not has_city_selected and status in {
+        VisaCaseStatus.PROFILES_COMPLETED.value,
+        VisaCaseStatus.CITY_SELECTION_IN_PROGRESS.value,
+        VisaCaseStatus.READY_FOR_CITY_SELECTION.value,
+    }:
+        return {
+            "type": "select_city",
+            "label": "Выберите страну и город подачи",
+            "href": "/case",
+        }
+    if status == VisaCaseStatus.SLOT_OPTIONS_SENT.value:
+        if has_slot_options:
+            return {
+                "type": "select_slot",
+                "label": "Выберите удобную дату",
+                "href": "/appointment",
+            }
+        return {
+            "type": "wait_manager",
+            "label": "Менеджер подбирает даты",
+            "href": "/status",
         }
 
     actions: dict[str, dict[str, str]] = {
@@ -152,26 +227,6 @@ def case_next_action(
             "label": "Менеджер подбирает даты",
             "href": "/status",
         },
-        VisaCaseStatus.SLOT_OPTIONS_SENT.value: {
-            "type": "select_slot",
-            "label": "Выберите удобную дату",
-            "href": "/appointment",
-        },
-        VisaCaseStatus.SLOT_SELECTED_BY_CLIENT.value: {
-            "type": "wait_confirmation",
-            "label": "Ожидайте подтверждения менеджера",
-            "href": "/status",
-        },
-        VisaCaseStatus.APPOINTMENT_CONFIRMATION_PENDING.value: {
-            "type": "wait_confirmation",
-            "label": "Ожидайте подтверждения менеджера",
-            "href": "/status",
-        },
-        VisaCaseStatus.APPOINTMENT_CONFIRMED.value: {
-            "type": "view_appointment",
-            "label": "Запись подтверждена",
-            "href": "/appointment",
-        },
         VisaCaseStatus.NEEDS_CLARIFICATION.value: {
             "type": "contact_manager",
             "label": "Свяжитесь с менеджером",
@@ -180,16 +235,6 @@ def case_next_action(
         VisaCaseStatus.NEEDS_MANAGER_CONSULTATION.value: {
             "type": "contact_manager",
             "label": "Свяжитесь с менеджером",
-            "href": "/status",
-        },
-        VisaCaseStatus.CANCELLED.value: {
-            "type": "terminal",
-            "label": "Заявка отменена",
-            "href": "/status",
-        },
-        VisaCaseStatus.CLOSED.value: {
-            "type": "terminal",
-            "label": "Заявка закрыта",
             "href": "/status",
         },
         VisaCaseStatus.ACCESS_ACTIVATED.value: {

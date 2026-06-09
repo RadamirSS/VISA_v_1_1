@@ -81,3 +81,71 @@ def slot_options_keyboard(options: list[tuple[str, str]], miniapp_url: str | Non
     if miniapp_url:
         keyboard.append([InlineKeyboardButton(text="Открыть в личном кабинете", url=miniapp_url)])
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+
+def document_actions_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="📋 Показать документы", callback_data="doc:action:list")],
+            [InlineKeyboardButton(text="📥 Запросить у клиента", callback_data="doc:action:request")],
+            [InlineKeyboardButton(text="🏢 Добавить документ агентства", callback_data="doc:action:agency")],
+            [InlineKeyboardButton(text="🔄 Изменить статус", callback_data="doc:action:status")],
+            [InlineKeyboardButton(text="💬 Комментарий", callback_data="doc:action:comment")],
+        ]
+    )
+
+
+def document_client_template_keyboard() -> InlineKeyboardMarkup:
+    from bot.services.document_templates import list_manager_client_picks
+
+    rows = [
+        [InlineKeyboardButton(text=template.title, callback_data=f"doc:req:{template.category}")]
+        for template in list_manager_client_picks()
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def document_agency_template_keyboard() -> InlineKeyboardMarkup:
+    from bot.services.document_templates import list_manager_agency_picks
+
+    rows = [
+        [InlineKeyboardButton(text=template.title, callback_data=f"doc:agency:{template.category}")]
+        for template in list_manager_agency_picks()
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def document_items_keyboard(items: list[tuple[str, str]], prefix: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=label, callback_data=f"doc:{prefix}:{item_id}")]
+            for item_id, label in items
+        ]
+    )
+
+
+def document_status_keyboard(source_type: str) -> InlineKeyboardMarkup:
+    from bot.models import AgencyDocumentStatus, ClientDocumentStatus, DocumentSourceType
+
+    if source_type == DocumentSourceType.CLIENT_REQUIRED.value:
+        statuses = [
+            (ClientDocumentStatus.REQUESTED.value, "Ожидаем от клиента"),
+            (ClientDocumentStatus.RECEIVED_BY_MANAGER.value, "Получено менеджером"),
+            (ClientDocumentStatus.APPROVED.value, "Принято"),
+            (ClientDocumentStatus.REJECTED.value, "Нужно заменить"),
+            (ClientDocumentStatus.NOT_NEEDED.value, "Не требуется"),
+        ]
+    else:
+        statuses = [
+            (AgencyDocumentStatus.PLANNED.value, "Запланировано"),
+            (AgencyDocumentStatus.PREPARING_BY_AGENCY.value, "Готовит агентство"),
+            (AgencyDocumentStatus.READY_FOR_CLIENT.value, "Готово"),
+            (AgencyDocumentStatus.SHARED_WITH_CLIENT.value, "Передано клиенту"),
+            (AgencyDocumentStatus.NOT_NEEDED.value, "Не требуется"),
+        ]
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=label, callback_data=f"doc:setstatus:{status}")]
+            for status, label in statuses
+        ]
+    )

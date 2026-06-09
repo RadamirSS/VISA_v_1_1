@@ -6,6 +6,7 @@ import { AppShell } from "../components/AppShell";
 import { AccessStatusCard } from "../components/dashboard/AccessStatusCard";
 import { ApplicantsProgressCard } from "../components/dashboard/ApplicantsProgressCard";
 import { AppointmentStatusCard } from "../components/dashboard/AppointmentStatusCard";
+import { DocumentsSummaryCard } from "../components/dashboard/DocumentsSummaryCard";
 import { CaseOverviewCard } from "../components/dashboard/CaseOverviewCard";
 import { ManagerHintCard } from "../components/dashboard/ManagerHintCard";
 import { NextActionCard } from "../components/dashboard/NextActionCard";
@@ -47,6 +48,7 @@ export default function HomePage() {
               <CaseOverviewCard summary={summary} />
               <NextActionCard summary={summary} />
               <ApplicantsProgressCard applicants={summary.applicants} />
+              {summary.documents ? <DocumentsSummaryCard documents={summary.documents} /> : null}
               <AppointmentStatusCard appointment={summary.appointment} />
               <ManagerHintCard />
               {timeline ? <TimelinePreviewCard steps={timeline.steps} /> : null}
