@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 
 import { AppShell } from "../../../components/AppShell";
 import { StatusTimeline } from "../../../components/StatusTimeline";
-import { applicantStatusLabel } from "../../../lib/cabinet";
+import { applicantStatusLabel, formatProviderDisplayName } from "../../../lib/cabinet";
 import { LoadingState } from "../../../components/LoadingState";
 import { api } from "../../../lib/api";
 import type { ApplicantProfile, CaseTimelineResponse, VisaCase } from "../../../lib/types";
@@ -36,7 +36,7 @@ export default function ReviewCasePage() {
         setApplicants(applicantsResponse);
         setTimeline(timelineResponse);
       } catch (loadError) {
-        setError(loadError instanceof Error ? loadError.message : "Не удалось загрузить review.");
+        setError(loadError instanceof Error ? loadError.message : "Не удалось загрузить данные для проверки.");
       }
     }
     void load();
@@ -56,8 +56,8 @@ export default function ReviewCasePage() {
   }
 
   return (
-    <AppShell title="Проверка заявки" subtitle="Проверьте summary перед отправкой менеджеру.">
-      {!visaCase && !error ? <LoadingState label="Готовим итоговое summary..." /> : null}
+    <AppShell title="Проверка заявки" subtitle="Проверьте данные перед отправкой менеджеру.">
+      {!visaCase && !error ? <LoadingState label="Готовим итоговую проверку..." /> : null}
       {error ? <section className="surface-card status-banner">{error}</section> : null}
       {visaCase ? (
         <div className="grid-stack">
@@ -66,7 +66,9 @@ export default function ReviewCasePage() {
             <p className="muted-text">Заявители: {applicants.length}</p>
             <p className="muted-text">Страна: {visaCase.desired_country_name_ru ?? "не выбрана"}</p>
             <p className="muted-text">Город подачи: {visaCase.preferred_submission_city ?? "не выбран"}</p>
-            <p className="muted-text">Визовый центр: {visaCase.submission_provider ?? "не выбран"}</p>
+            <p className="muted-text">
+              Визовый центр / провайдер: {formatProviderDisplayName(visaCase.submission_provider) || "не выбран"}
+            </p>
             <p className="muted-text">Цель: {visaCase.travel_purpose ?? "не выбрана"}</p>
             <p className="muted-text">
               Даты поездки: {visaCase.approximate_travel_start_date ?? "не указано"} — {visaCase.approximate_travel_end_date ?? "не указано"}

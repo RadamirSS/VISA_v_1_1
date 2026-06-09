@@ -30,24 +30,13 @@ export function DocumentsSummaryCard({ documents, expanded = false }: DocumentsS
     <section className="surface-card dashboard-card">
       <p className="card-label">Документы</p>
       <h3>Документы</h3>
-      {documents.client_pending > 0 ? (
-        <p className="muted-text">От вас: {documents.client_pending} ожидают загрузки</p>
-      ) : null}
-      {documents.client_uploaded > 0 ? (
-        <p className="muted-text">От вас: {documents.client_uploaded} на проверке</p>
+      {documents.client_pending > 0 || documents.client_uploaded > 0 ? (
+        <p className="muted-text">Мы запросили документы. Загрузите нужные файлы в разделе «Документы».</p>
       ) : null}
       {documents.agency_in_progress > 0 ? (
-        <p className="muted-text">Агентство: {documents.agency_in_progress} документ готовится</p>
+        <p className="muted-text">Агентство готовит документы по вашей заявке.</p>
       ) : null}
-      {readyCount > 0 ? <p className="muted-text">Готово: {readyCount}</p> : null}
-      {expanded ? (
-        <>
-          <p className="muted-text">
-            Ожидаем от вас: {documents.client_pending} · Готовит агентство: {documents.agency_in_progress} · Готово:{" "}
-            {readyCount}
-          </p>
-        </>
-      ) : null}
+      {readyCount > 0 ? <p className="muted-text">Документы приняты в работу или готовы к просмотру.</p> : null}
       <Link className="secondary-button" href="/documents">
         Открыть документы
       </Link>

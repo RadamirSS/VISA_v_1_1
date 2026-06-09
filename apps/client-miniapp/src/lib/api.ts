@@ -43,7 +43,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     if (typeof detail === "object" && detail?.message) {
       throw new Error(detail.message);
     }
-    throw new Error(detail ?? "Ошибка API");
+    if (typeof detail === "string" && detail.length > 0 && detail.length < 120 && !detail.includes("_")) {
+      throw new Error(detail);
+    }
+    throw new Error("Не удалось выполнить запрос. Попробуйте позже.");
   }
   return response.json() as Promise<T>;
 }

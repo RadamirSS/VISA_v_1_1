@@ -81,6 +81,7 @@ uvicorn bot.api.main:app --host 0.0.0.0 --port 8100
 - [docs/DOCUMENT_REQUEST_CHECKLIST.md](docs/DOCUMENT_REQUEST_CHECKLIST.md)
 - [docs/PILOT_QA_CHECKLIST.md](docs/PILOT_QA_CHECKLIST.md) — ручной сценарий пилота
 - [docs/PILOT_READINESS.md](docs/PILOT_READINESS.md) — готовность и ограничения пилота
+- [docs/PILOT_RELEASE_NOTES.md](docs/PILOT_RELEASE_NOTES.md) — release notes и go/no-go для закрытого пилота
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — деплой и env
 
 Проверка бота:

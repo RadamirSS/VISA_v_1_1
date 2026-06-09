@@ -23,7 +23,7 @@ export function AppShell({
     <div className="app-shell">
       <header className="hero-card">
         <div>
-          {hideEyebrow ? <p className="eyebrow">Личный кабинет визового сопровождения</p> : <p className="eyebrow">Telegram Mini App</p>}
+          <p className="eyebrow">Личный кабинет визового сопровождения</p>
           <h1>{title}</h1>
           {subtitle ? <p className="hero-copy">{subtitle}</p> : null}
         </div>

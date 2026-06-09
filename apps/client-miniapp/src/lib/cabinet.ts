@@ -68,3 +68,13 @@ export function applicantsProgressPercent(completed: number, total: number): num
   }
   return Math.round((completed / total) * 100);
 }
+
+export function formatProviderDisplayName(provider?: string | null): string {
+  if (!provider) {
+    return "";
+  }
+  return provider
+    .replace(/\s*\/\s*provider to verify$/i, "")
+    .replace(/\s*visa center$/i, " визовый центр")
+    .trim();
+}

@@ -157,6 +157,7 @@ export function ApplyForm({ initialDesiredCountry }: { initialDesiredCountry?: s
         <h3 className="font-display text-3xl text-[var(--ink)]">Спасибо, мы получили ваш запрос</h3>
         <p className="text-[var(--muted)]">
           Сначала мы сохраняем заявку на сервере, затем менеджер связывается с вами по указанным контактам для первичной консультации.
+          Финальное решение по визе принимает консульство или уполномоченный визовый орган.
         </p>
       </Card>
     );
@@ -166,6 +167,7 @@ export function ApplyForm({ initialDesiredCountry }: { initialDesiredCountry?: s
     <Card className="space-y-6">
       <div className="rounded-[24px] bg-[var(--surface)] p-4 text-sm text-[var(--muted)]">
         Укажите только базовую информацию для связи и первичной консультации. Паспортные данные, загрузка документов и платежные сведения на сайте не нужны.
+        Мы не гарантируем визу и не гарантируем запись — доступность дат зависит от внешних визовых систем.
       </div>
 
       <div className="space-y-4">

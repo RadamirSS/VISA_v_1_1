@@ -28,7 +28,7 @@ const requiredLabels: Record<keyof ApplicantPayload, string> = {
   approximate_travel_dates: "Примерные даты поездки",
   entries_count: "Количество въездов",
   preferred_submission_city: "Предпочтительный город подачи",
-  case_id: "Кейс",
+  case_id: "Заявка",
   role: "Роль"
 };
 

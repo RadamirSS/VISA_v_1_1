@@ -6,6 +6,7 @@ from aiogram.types import Message
 
 from bot.config import get_settings
 from bot.repositories.orders import OrderRepository
+from bot.services.trust_display import order_status_label, payment_status_label
 
 router = Router()
 settings = get_settings()
@@ -19,8 +20,8 @@ def _render_orders(orders: list[dict]) -> str:
             f"Страна: {order['country_name_ru']}\n"
             f"Город: {order['submission_city']}\n"
             f"Окно: {order['time_window_code']}\n"
-            f"Оплата: {order['payment_status']}\n"
-            f"Статус: {order['order_status']}\n"
+            f"Оплата: {payment_status_label(order['payment_status'])}\n"
+            f"Статус: {order_status_label(order['order_status'])}\n"
             f"Создано: {order['created_at'][:10]}"
         )
         for order in orders

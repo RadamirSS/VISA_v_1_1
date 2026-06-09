@@ -5,6 +5,7 @@
 Связанные документы:
 
 - [PILOT_READINESS.md](PILOT_READINESS.md) — готовность и ограничения пилота
+- [PILOT_RELEASE_NOTES.md](PILOT_RELEASE_NOTES.md) — release notes и go/no-go
 - [MANAGER_OPERATIONS_FLOW.md](MANAGER_OPERATIONS_FLOW.md) — менеджерский workflow
 - [CLIENT_MINIAPP_FLOW.md](CLIENT_MINIAPP_FLOW.md) — клиентский Mini App flow
 
@@ -13,6 +14,8 @@
 - `apps/telegram-bot/tests/test_pilot_end_to_end_flow.py`
 - `apps/telegram-bot/tests/test_pilot_security_redaction.py`
 - `apps/telegram-bot/tests/test_pilot_readiness_checks.py`
+- `apps/telegram-bot/tests/test_trust_copy_safety.py`
+- `apps/telegram-bot/tests/test_pilot_release_readiness.py`
 
 ## Setup
 
@@ -52,6 +55,20 @@ pnpm dev
 ```
 
 Перед пилотом проверьте `.env` бота: `BOT_TOKEN`, `BOT_ADMIN_IDS`, `CLIENT_MINIAPP_URL`, `MINIAPP_BOT_TOKEN`, `MINIAPP_ALLOWED_ORIGIN`, `MINIAPP_DEV_AUTH=true` (только для локального теста).
+
+## Website lead flow
+
+1. Запустите сайт: `pnpm dev:web` (или проверьте production build).
+2. Откройте `/apply` и убедитесь, что на странице есть disclaimer о том, что виза и запись не гарантируются.
+3. Отправьте тестовую заявку с минимально необходимыми полями.
+4. Проверьте запись в `apps/web/storage/leads.jsonl`.
+5. Опционально: при настроенных `LEADS_TELEGRAM_BOT_TOKEN` и `LEADS_TELEGRAM_CHAT_ID` проверьте уведомление в Telegram.
+
+```bash
+cd apps/web
+pnpm typecheck
+pnpm build
+```
 
 ## Manager flow
 

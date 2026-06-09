@@ -24,7 +24,7 @@ export default function NewCasePage() {
 
   const consultationOptions = useMemo(
     () => [
-      { code: "CONSULTATION", name_ru: "Не знаю, нужна консультация", suits_for_ru: "Создадим кейс без выбора города и менеджер поможет определить маршрут подачи." },
+      { code: "CONSULTATION", name_ru: "Не знаю, нужна консультация", suits_for_ru: "Создадим заявку без выбора города и менеджер поможет определить маршрут подачи." },
       { code: "OTHER", name_ru: "Другая страна", suits_for_ru: "Если нужной страны нет в списке, менеджер уточнит возможный сценарий." }
     ],
     []
@@ -110,7 +110,7 @@ export default function NewCasePage() {
 
   return (
     <AppShell title="Создание заявки" subtitle="Выберите страну, город подачи и визовый центр из общей конфигурации.">
-      {!visaCase && !error ? <LoadingState label="Подготавливаем case flow..." /> : null}
+      {!visaCase && !error ? <LoadingState label="Подготавливаем заявку..." /> : null}
       {error ? <section className="surface-card status-banner">{error}</section> : null}
       {incompleteApplicants.length ? (
         <section className="surface-card">
@@ -259,7 +259,7 @@ export default function NewCasePage() {
             <p className="muted-text">После отправки менеджер проверит анкету и подберет возможные даты записи вручную.</p>
             <div className="action-bar">
               <Link className={canProceedToReview ? "primary-button" : "ghost-button"} href={canProceedToReview ? "/case/review" : "/case/new"}>
-                Перейти к review
+                Перейти к проверке
               </Link>
             </div>
           </section>

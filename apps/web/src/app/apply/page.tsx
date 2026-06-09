@@ -17,7 +17,11 @@ export default function ApplyPage({ searchParams }: { searchParams?: Record<stri
   const initialDesiredCountry = countryKey ? countryPrefillMap[countryKey] : undefined;
 
   return (
-    <Section eyebrow="Первичная заявка" title="Оставьте короткий запрос" description="Нам нужна только базовая информация для связи и понимания направления. Паспортные данные, сканы документов и финансовая информация на сайте не собираются.">
+    <Section
+      eyebrow="Первичная заявка"
+      title="Оставьте короткий запрос"
+      description="Нам нужна только базовая информация для связи и понимания направления. Паспортные данные, сканы документов и финансовая информация на сайте не собираются. Сервис помогает организовать сопровождение, но не гарантирует визу и не гарантирует доступность записи — даты зависят от внешних визовых систем."
+    >
       <ApplyForm initialDesiredCountry={initialDesiredCountry} />
     </Section>
   );

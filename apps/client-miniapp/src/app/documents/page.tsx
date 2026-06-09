@@ -51,7 +51,6 @@ export default function DocumentsPage() {
       {!loading && !error && items.length > 0 ? (
         <div className="grid-stack">
           <section className="surface-card">
-            <p className="card-label">Раздел 1</p>
             <h3>Нужно от вас</h3>
             {clientItems.length === 0 ? (
               <p className="muted-text">Сейчас от вас ничего не требуется.</p>
@@ -64,10 +63,9 @@ export default function DocumentsPage() {
             )}
           </section>
           <section className="surface-card">
-            <p className="card-label">Раздел 2</p>
             <h3>Готовит агентство</h3>
             {agencyItems.length === 0 ? (
-              <p className="muted-text">Агентство пока не готовит документы по вашей заявке.</p>
+              <p className="muted-text">Документы от агентства появятся здесь по мере готовности.</p>
             ) : (
               <div className="grid-stack">
                 {agencyItems.map((item) => (

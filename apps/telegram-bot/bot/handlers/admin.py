@@ -573,13 +573,24 @@ async def confirm_appointment_step(message: Message, state: FSMContext) -> None:
 
 
 def _render_case_documents(case_id: str) -> str:
+    from bot.models import DocumentSourceType
+
     items = document_repository.list_by_case(case_id)
     if not items:
         return f"По кейсу {case_id} документов пока нет."
+    client_items = [item for item in items if item.source_type == DocumentSourceType.CLIENT_REQUIRED.value]
+    agency_items = [item for item in items if item.source_type == DocumentSourceType.AGENCY_PREPARED.value]
     lines = [f"Документы по кейсу {case_id}:"]
-    for item in items:
-        has_file = document_repository.has_active_file(item.id)
-        lines.append(f"- {item.title}: {document_status_label(item, has_file=has_file)} ({item.source_type})")
+    if client_items:
+        lines.append("Документы клиента:")
+        for item in client_items:
+            has_file = document_repository.has_active_file(item.id)
+            lines.append(f"- {item.title}: {document_status_label(item, has_file=has_file)}")
+    if agency_items:
+        lines.append("Документы агентства:")
+        for item in agency_items:
+            has_file = document_repository.has_active_file(item.id)
+            lines.append(f"- {item.title}: {document_status_label(item, has_file=has_file)}")
     return "\n".join(lines)
 
 
@@ -647,7 +658,7 @@ async def document_action_callback(callback: CallbackQuery, state: FSMContext) -
     if action == "request":
         await callback.answer()
         await callback.message.answer(
-            "Выберите документ для запроса у клиента.",
+            "Документы клиента: выберите документ для запроса.",
             reply_markup=document_client_template_keyboard(),
         )
         return
@@ -655,7 +666,7 @@ async def document_action_callback(callback: CallbackQuery, state: FSMContext) -
     if action == "agency":
         await callback.answer()
         await callback.message.answer(
-            "Выберите документ, который готовит агентство.",
+            "Документы агентства: выберите документ для подготовки.",
             reply_markup=document_agency_template_keyboard(),
         )
         return
@@ -1318,7 +1329,7 @@ async def admin_take_order(callback: CallbackQuery) -> None:
         await callback.message.answer(_render_order_details(updated), reply_markup=admin_order_actions_keyboard(public_number))
         await callback.message.bot.send_message(
             updated["telegram_id"],
-            f"Заявка {public_number} взята в работу менеджером. Реальное бронирование еще не выполнялось: сейчас используется mock-этап внутренней обработки.",
+            f"Заявка {public_number} взята в работу менеджером. Мы сообщим о следующих шагах.",
         )
 
 
@@ -1355,7 +1366,12 @@ async def admin_set_status(callback: CallbackQuery) -> None:
     await callback.answer("Статус обновлен.")
     if updated:
         await callback.message.answer(_render_order_details(updated), reply_markup=admin_order_actions_keyboard(public_number))
-        await callback.message.bot.send_message(updated["telegram_id"], f"Статус заявки {public_number} обновлен: {status}.")
+        from bot.services.trust_display import order_status_label
+
+        await callback.message.bot.send_message(
+            updated["telegram_id"],
+            f"Статус заявки {public_number} обновлен: {order_status_label(status)}.",
+        )
 
 
 @router.callback_query(F.data.startswith("admin:message:"))

@@ -1,3 +1,4 @@
+import { formatProviderDisplayName } from "../lib/cabinet";
 import type { ConsulateOption, CountryOption } from "../lib/types";
 
 export function CountryCard({
@@ -33,7 +34,7 @@ export function ConsulateCard({
       <div className="card-row">
         <div>
           <h3>{consulate.city}</h3>
-          <p className="muted-text">Визовый центр: {consulate.provider}</p>
+          <p className="muted-text">Визовый центр: {formatProviderDisplayName(consulate.provider)}</p>
           <p className="muted-text">
             Статус: {consulate.verification_status === "verified" ? "Проверено" : "Требует проверки менеджером"}
           </p>

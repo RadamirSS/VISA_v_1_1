@@ -46,13 +46,13 @@ AGENCY_STATUSES = frozenset(status.value for status in AgencyDocumentStatus)
 
 def document_status_label(item: DocumentItem, *, has_file: bool = False) -> str:
     if item.source_type == DocumentSourceType.CLIENT_REQUIRED.value:
-        return CLIENT_STATUS_LABELS.get(item.status, item.status)
+        return CLIENT_STATUS_LABELS.get(item.status, "Статус уточняется")
 
     if item.status == AgencyDocumentStatus.TRANSFERRED_SEPARATELY.value:
         return AGENCY_STATUS_LABELS[item.status]
     if item.status in AGENCY_READY_STATUSES and not has_file:
         return AGENCY_STATUS_LABELS[AgencyDocumentStatus.PREPARING_BY_AGENCY.value]
-    return AGENCY_STATUS_LABELS.get(item.status, item.status)
+    return AGENCY_STATUS_LABELS.get(item.status, "Статус уточняется")
 
 
 def is_transferred_separately(item: DocumentItem) -> bool:

@@ -16,10 +16,10 @@ function agencyPlaceholder(document: DocumentItem): string {
     return "Документ будет передан менеджером отдельно.";
   }
   if (document.status === "preparing_by_agency" || document.status === "planned") {
-    return "Готовит агентство";
+    return "Агентство готовит документ.";
   }
   if (document.has_file) {
-    return "Документ будет доступен после передачи менеджером.";
+    return "Документ готов. Вы можете открыть его в личном кабинете.";
   }
   return "Документ будет добавлен позже.";
 }
@@ -69,6 +69,9 @@ export function DocumentCard({ document, onUpdate }: DocumentCardProps) {
         </div>
         <span className="status-chip active">{document.status_label}</span>
       </div>
+      {document.status === "rejected" ? (
+        <p className="muted-text">Нужно заменить документ. Посмотрите комментарий менеджера.</p>
+      ) : null}
       {document.description ? <p className="muted-text">{document.description}</p> : null}
       {document.manager_comment ? (
         <p className="muted-text">Комментарий менеджера: {document.manager_comment}</p>

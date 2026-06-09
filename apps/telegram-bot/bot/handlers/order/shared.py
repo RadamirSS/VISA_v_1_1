@@ -22,6 +22,7 @@ from bot.services.config_loader import (
     load_countries,
     load_price_tiers,
 )
+from bot.services.trust_display import order_status_label, payment_status_label
 from bot.services.notifications import (
     build_manager_contact_notification,
     build_new_order_notification,
@@ -254,7 +255,7 @@ async def finalize_order(
         f"Страна: {order.country_name_ru}\n"
         f"Город подачи: {order.submission_city}\n"
         f"Срок поиска: {data['time_window_label']}\n"
-        f"Статус: {order.payment_status}, {order.order_status}.\n"
+        f"Статус: {payment_status_label(order.payment_status)}, {order_status_label(order.order_status)}.\n"
         "Мы не гарантируем наличие свободных слотов. Менеджер начнет обработку и сообщит о следующих шагах.",
         reply_markup=main_menu_keyboard(settings.client_miniapp_url),
     )

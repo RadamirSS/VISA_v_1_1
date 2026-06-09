@@ -5,6 +5,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 
 from bot.services.pricing import calculate_total
+from bot.services.trust_display import format_provider_display_name
 
 from .shared import (
     AppointmentRequestState,
@@ -57,7 +58,7 @@ async def order_country(message: Message, state: FSMContext) -> None:
         return
     await state.update_data(country_code=country.code, country_name_ru=country.name_ru)
     await state.set_state(AppointmentRequestState.city)
-    rows = [[f"{item.city} — {item.provider}"] for item in matched_consulates]
+    rows = [[f"{item.city} — {format_provider_display_name(item.provider)}"] for item in matched_consulates]
     await message.answer("Выберите город подачи и визовый центр.", reply_markup=simple_keyboard(*rows))
 
 
@@ -65,9 +66,16 @@ async def order_country(message: Message, state: FSMContext) -> None:
 async def order_city(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
     matched_consulates = find_consulates_by_country(consulates(), data["country_code"])
-    selected = next((item for item in matched_consulates if f"{item.city} — {item.provider}" == message.text.strip()), None)
+    selected = next(
+        (
+            item
+            for item in matched_consulates
+            if f"{item.city} — {format_provider_display_name(item.provider)}" == message.text.strip()
+        ),
+        None,
+    )
     if selected is None:
-        rows = [[f"{item.city} — {item.provider}"] for item in matched_consulates]
+        rows = [[f"{item.city} — {format_provider_display_name(item.provider)}"] for item in matched_consulates]
         await message.answer("Выберите город подачи из списка.", reply_markup=simple_keyboard(*rows))
         return
     await state.update_data(submission_city=selected.city, provider=selected.provider)

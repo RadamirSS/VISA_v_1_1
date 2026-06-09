@@ -187,7 +187,8 @@ def test_scenario_2_manager_queue_and_case_workspace(tmp_path: Path) -> None:
     assert ctx.telegram_id in summary_text
     assert "Италия" in summary_text
     assert "Москва" in summary_text
-    assert "Italy visa center" in summary_text
+    assert "Визовый центр Italy" in summary_text
+    assert "provider to verify" not in summary_text
     assert "Заявителей: 1" in summary_text
     assert "документы не запрошены" in summary_text
     assert "не назначена" in summary_text

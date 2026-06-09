@@ -4,6 +4,8 @@ from aiogram import Bot
 
 from bot.config import Settings
 from bot.models import BookingOrder, SupportRequest
+from bot.services.case_status import case_status_label
+from bot.services.trust_display import format_provider_display_name
 
 
 def build_new_order_notification(order: BookingOrder) -> str:
@@ -55,7 +57,7 @@ def build_profiles_completed_notification(
         f"Telegram: @{username}" if username else f"Telegram ID: {telegram_id}",
         f"telegram_id: {telegram_id}",
         f"Заявителей: {applicants_count}",
-        f"Статус: {case_status}",
+        f"Статус: {case_status_label(case_status)}",
         "Откройте менеджерский интерфейс для проверки.",
     ]
     return "\n".join(lines)
@@ -79,9 +81,9 @@ def build_case_submitted_notification(
         f"Заявителей: {applicants_count}",
         f"Страна: {country_name or 'не выбрана'}",
         f"Город подачи: {city or 'уточнить с менеджером'}",
-        f"Визовый центр: {provider or 'консультация / уточнить'}",
+        f"Визовый центр: {format_provider_display_name(provider) or 'консультация / уточнить'}",
         f"Цель: {travel_purpose or 'уточнить'}",
-        f"Статус: {case_status}",
+        f"Статус: {case_status_label(case_status)}",
         "Откройте менеджерский интерфейс для проверки анкет.",
     ]
     return "\n".join(lines)
@@ -96,7 +98,7 @@ def build_slot_options_sent_to_manager(case_id: str, options_count: int) -> str:
 
 
 def build_slot_options_message() -> str:
-    return "Менеджер подобрал возможные даты записи.\nВыберите удобный вариант:"
+    return "Менеджер отправил варианты дат.\nОткройте раздел «Запись»."
 
 
 def build_slot_selected_notification(
@@ -115,7 +117,7 @@ def build_slot_selected_notification(
         f"Дата: {option_date}",
         f"Время: {option_time}",
         f"Город: {city or 'не указан'}",
-        f"Провайдер: {provider or 'не указан'}",
+        f"Визовый центр: {format_provider_display_name(provider) or 'не указан'}",
     ]
     return "\n".join(lines)
 
@@ -131,17 +133,17 @@ def build_appointment_confirmed_message(
     provider: str | None,
 ) -> str:
     return (
-        "Запись подтверждена.\n"
+        "Запись подтверждена менеджером.\n"
         f"Дата: {option_date or '-'}\n"
         f"Время: {option_time or '-'}\n"
         f"Город: {city or '-'}\n"
-        f"Визовый центр: {provider or '-'}\n"
+        f"Визовый центр: {format_provider_display_name(provider) or '-'}\n"
         "Менеджер сообщит, какие документы нужно подготовить."
     )
 
 
 def build_documents_requested_message() -> str:
-    return "Менеджер запросил документы.\nОткройте личный кабинет → Документы."
+    return "Менеджер запросил документы.\nОткройте раздел «Документы»."
 
 
 def build_agency_document_ready_message(title: str) -> str:

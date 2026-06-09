@@ -16,6 +16,9 @@ export default function CountriesPage() {
           </Card>
         ))}
       </div>
+      <p className="mt-8 text-sm text-[var(--muted)]">
+        Доступность записи зависит от внешних визовых систем. Финальное решение по визе принимает консульство или уполномоченный визовый орган.
+      </p>
     </Section>
   );
 }

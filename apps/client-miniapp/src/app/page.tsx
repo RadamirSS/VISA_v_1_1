@@ -36,10 +36,14 @@ export default function HomePage() {
   return (
     <AppShell
       title={greeting}
-      subtitle="Здесь вы заполняете анкеты, отслеживаете заявку и получаете следующие шаги от менеджера."
+      subtitle="Сервис помогает организовать сбор данных, документов и коммуникацию с менеджером."
       hideEyebrow
     >
-      {error ? <section className="surface-card status-banner">{error}</section> : null}
+      {error ? (
+        <section className="surface-card status-banner">
+          <p>Не удалось загрузить кабинет. Проверьте подключение и откройте Mini App снова из Telegram.</p>
+        </section>
+      ) : null}
       {summary ? (
         <div className="grid-stack">
           <AccessStatusCard access={summary.access} />

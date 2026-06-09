@@ -3,7 +3,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from bot.models import ApplicantProfileStatus, VisaCaseStatus
-from bot.services.case_status import case_status_label, format_case_public_number
+from bot.services.case_status import case_next_action, case_status_label, format_case_public_number
+from bot.services.trust_display import format_provider_display_name
 
 if TYPE_CHECKING:
     from bot.models import ApplicantProfile, VisaCase
@@ -117,19 +118,28 @@ def render_manager_case_summary(
     completed = sum(1 for item in applicants if item.status == ApplicantProfileStatus.COMPLETED.value)
     applicant_count = len(applicants) or visa_case.applicants_count
     doc_summary = render_document_summary_for_manager(doc_counts) if doc_counts else "документы не запрошены"
+    pending_uploads = int(doc_counts.get("client_pending", 0)) if doc_counts else 0
+    next_action = case_next_action(
+        visa_case.status,
+        has_applicants=bool(applicants),
+        has_city_selected=bool(visa_case.preferred_submission_city),
+        pending_document_uploads=pending_uploads,
+    )
+    provider = format_provider_display_name(visa_case.submission_provider) or "не выбран"
     return (
         f"Кейс: {public_number}\n"
         f"ID: {visa_case.id}\n"
         f"Клиент: {format_safe_client_line(visa_case.telegram_id, username)}\n"
         f"Страна: {visa_case.desired_country_name_ru or 'не выбрана'}\n"
         f"Город подачи: {visa_case.preferred_submission_city or 'не выбран'}\n"
-        f"Визовый центр: {visa_case.submission_provider or 'не выбран'}\n"
+        f"Визовый центр: {provider}\n"
         f"Цель: {visa_case.travel_purpose or 'уточнить'}\n"
         f"Заявителей: {applicant_count}\n"
         f"Анкеты: {completed}/{applicant_count} заполнено\n"
         f"{doc_summary}\n"
         f"Запись: {render_appointment_state(visa_case)}\n"
-        f"Статус: {manager_case_status_label(visa_case.status)}"
+        f"Статус: {manager_case_status_label(visa_case.status)}\n"
+        f"Следующее действие: {next_action['label']}"
     )
 
 
