@@ -242,6 +242,7 @@ export type DocumentItem = {
   can_download: boolean;
   has_file: boolean;
   uploads_enabled: boolean;
+  transferred_separately: boolean;
 };
 
 export type DocumentsListResponse = {

@@ -148,6 +148,14 @@ def build_agency_document_ready_message(title: str) -> str:
     return f"Документ от агентства готов: {title}.\nОткройте личный кабинет → Документы."
 
 
+def build_agency_document_transferred_separately_message(title: str) -> str:
+    return (
+        f"Документ от агентства: {title}.\n"
+        "Менеджер передаст его отдельно.\n"
+        "Откройте личный кабинет → Документы."
+    )
+
+
 def build_client_uploaded_notification(case_public_number: str, document_title: str, status: str) -> str:
     return (
         "Клиент загрузил документ.\n"

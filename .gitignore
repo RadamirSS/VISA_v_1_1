@@ -7,6 +7,7 @@ tsconfig.tsbuildinfo
 .venv
 __pycache__
 *.pyc
+*.egg-info/
 apps/telegram-bot/visa_bot.db
 apps/telegram-bot/storage/
 apps/web/storage/*.jsonl

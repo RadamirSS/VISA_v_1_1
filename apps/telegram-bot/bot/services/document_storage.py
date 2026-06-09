@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import mimetypes
+from io import BytesIO
 from pathlib import Path
 from typing import BinaryIO
 from uuid import uuid4
@@ -36,9 +37,7 @@ class DocumentStorageService:
     def enabled(self) -> bool:
         return self._enabled
 
-    def validate_upload(self, *, filename: str, content_type: str | None, size_bytes: int) -> str:
-        if not self._enabled:
-            raise ValueError("Document uploads are disabled")
+    def validate_file_content(self, *, filename: str, content_type: str | None, size_bytes: int) -> str:
         if size_bytes <= 0:
             raise ValueError("Empty file")
         if size_bytes > self._max_bytes:
@@ -49,7 +48,12 @@ class DocumentStorageService:
             raise ValueError("Unsupported file type")
         return mime_type
 
-    def save_upload(
+    def validate_upload(self, *, filename: str, content_type: str | None, size_bytes: int) -> str:
+        if not self._enabled:
+            raise ValueError("Document uploads are disabled")
+        return self.validate_file_content(filename=filename, content_type=content_type, size_bytes=size_bytes)
+
+    def _write_file(
         self,
         *,
         case_id: str,
@@ -60,8 +64,13 @@ class DocumentStorageService:
         content: BinaryIO,
         size_bytes: int,
         applicant_id: str | None = None,
+        require_client_upload_enabled: bool,
     ) -> DocumentFile:
-        mime_type = self.validate_upload(filename=filename, content_type=content_type, size_bytes=size_bytes)
+        if require_client_upload_enabled:
+            mime_type = self.validate_upload(filename=filename, content_type=content_type, size_bytes=size_bytes)
+        else:
+            mime_type = self.validate_file_content(filename=filename, content_type=content_type, size_bytes=size_bytes)
+
         file_id = str(uuid4())
         target_dir = self._storage_dir / case_id / document_item_id
         target_dir.mkdir(parents=True, exist_ok=True)
@@ -78,6 +87,53 @@ class DocumentStorageService:
             mime_type=mime_type,
             size_bytes=size_bytes,
             applicant_id=applicant_id,
+        )
+
+    def save_upload(
+        self,
+        *,
+        case_id: str,
+        document_item_id: str,
+        uploaded_by: str,
+        filename: str,
+        content_type: str | None,
+        content: BinaryIO,
+        size_bytes: int,
+        applicant_id: str | None = None,
+    ) -> DocumentFile:
+        return self._write_file(
+            case_id=case_id,
+            document_item_id=document_item_id,
+            uploaded_by=uploaded_by,
+            filename=filename,
+            content_type=content_type,
+            content=content,
+            size_bytes=size_bytes,
+            applicant_id=applicant_id,
+            require_client_upload_enabled=True,
+        )
+
+    def save_manager_agency_upload(
+        self,
+        *,
+        case_id: str,
+        document_item_id: str,
+        uploaded_by: str,
+        filename: str,
+        content_type: str | None,
+        content: bytes,
+        applicant_id: str | None = None,
+    ) -> DocumentFile:
+        return self._write_file(
+            case_id=case_id,
+            document_item_id=document_item_id,
+            uploaded_by=uploaded_by,
+            filename=filename,
+            content_type=content_type,
+            content=BytesIO(content),
+            size_bytes=len(content),
+            applicant_id=applicant_id,
+            require_client_upload_enabled=False,
         )
 
     def open_file(self, document_file: DocumentFile) -> Path:

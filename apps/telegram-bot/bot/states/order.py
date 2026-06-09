@@ -66,3 +66,4 @@ class AdminState(StatesGroup):
     document_agency_title = State()
     document_status_pick = State()
     document_comment_text = State()
+    document_agency_upload_file = State()

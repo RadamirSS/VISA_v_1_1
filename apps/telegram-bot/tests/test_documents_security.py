@@ -6,14 +6,14 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from bot.api import main as api_main
-from bot.models import DocumentCategory
+from bot.models import AgencyDocumentStatus, DocumentCategory
 from bot.repositories.access_keys import new_access_key
 from bot.services.notifications import (
     build_agency_document_ready_message,
+    build_agency_document_transferred_separately_message,
     build_client_uploaded_notification,
     build_documents_requested_message,
 )
-from fastapi.testclient import TestClient
 from tests.conftest import build_api_container
 
 
@@ -69,3 +69,30 @@ def test_notification_texts_contain_no_sensitive_content() -> None:
 
     assert "Загранпаспорт" in uploaded
     assert "uploaded_by_client" in uploaded
+
+
+def test_client_cannot_download_another_users_agency_document(tmp_path: Path) -> None:
+    container = build_api_container(tmp_path, database_name="agency-security.db", uploads_enabled=False)
+    owner = container.users.upsert_from_telegram(9400, "owner", "Owner", "User")
+    key = new_access_key("SEC-AGENCY", 1, "miniapp", [], 2, None, None)
+    container.access_keys.save(key)
+    container.access_keys.bind_and_activate(key.code, owner.id, owner.telegram_id)
+    case = container.miniapp.create_case(owner, key.id, key.code)
+    agency = container.documents.create_agency_item(case.id, DocumentCategory.HOTEL_BOOKING.value, admin_id=1)
+    container.document_storage.save_manager_agency_upload(
+        case_id=case.id,
+        document_item_id=agency.id,
+        uploaded_by="admin:1",
+        filename="hotel.pdf",
+        content_type="application/pdf",
+        content=b"%PDF-1.4 agency",
+    )
+    container.documents.update_status(agency.id, AgencyDocumentStatus.READY_FOR_CLIENT.value, admin_id=1)
+    client = TestClient(api_main.app)
+
+    response = client.get(
+        f"/api/case/current/documents/{agency.id}/download",
+        headers={"X-Dev-Telegram-Id": "9401"},
+    )
+
+    assert response.status_code in {403, 404}

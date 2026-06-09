@@ -88,6 +88,15 @@ def test_count_requested_uploaded_ready_documents(tmp_path: Path) -> None:
     documents.create_client_request(case_id, DocumentCategory.BANK_STATEMENT.value, admin_id=1)
     agency = documents.create_agency_item(case_id, DocumentCategory.HOTEL_BOOKING.value, admin_id=1)
     documents.mark_uploaded_by_client(requested.id, "7100")
+    documents.save_file_metadata(
+        document_item_id=agency.id,
+        case_id=case_id,
+        uploaded_by="admin:1",
+        original_filename="hotel.pdf",
+        storage_path=str(tmp_path / "hotel.pdf"),
+        mime_type="application/pdf",
+        size_bytes=10,
+    )
     documents.update_status(agency.id, AgencyDocumentStatus.READY_FOR_CLIENT.value, admin_id=1)
 
     counts = documents.count_summary(case_id)
@@ -95,6 +104,42 @@ def test_count_requested_uploaded_ready_documents(tmp_path: Path) -> None:
     assert counts["client_pending"] == 1
     assert counts["client_uploaded"] == 1
     assert counts["agency_ready"] == 1
+
+
+def test_agency_ready_status_requires_file(tmp_path: Path) -> None:
+    documents, case_id = build_repo(tmp_path)
+    agency = documents.create_agency_item(case_id, DocumentCategory.HOTEL_BOOKING.value, admin_id=1)
+
+    with pytest.raises(ValueError, match="Сначала загрузите файл агентства"):
+        documents.update_status(agency.id, AgencyDocumentStatus.READY_FOR_CLIENT.value, admin_id=1)
+
+
+def test_agency_ready_status_allowed_with_file(tmp_path: Path) -> None:
+    documents, case_id = build_repo(tmp_path)
+    agency = documents.create_agency_item(case_id, DocumentCategory.HOTEL_BOOKING.value, admin_id=1)
+    documents.save_file_metadata(
+        document_item_id=agency.id,
+        case_id=case_id,
+        uploaded_by="admin:1",
+        original_filename="hotel.pdf",
+        storage_path=str(tmp_path / "hotel.pdf"),
+        mime_type="application/pdf",
+        size_bytes=10,
+    )
+
+    updated = documents.update_status(agency.id, AgencyDocumentStatus.READY_FOR_CLIENT.value, admin_id=1)
+
+    assert updated.status == AgencyDocumentStatus.READY_FOR_CLIENT.value
+
+
+def test_mark_transferred_separately_without_file(tmp_path: Path) -> None:
+    documents, case_id = build_repo(tmp_path)
+    agency = documents.create_agency_item(case_id, DocumentCategory.INVITATION.value, admin_id=1)
+
+    updated = documents.mark_transferred_separately(agency.id, admin_id=1)
+
+    assert updated.status == AgencyDocumentStatus.TRANSFERRED_SEPARATELY.value
+    assert "отдельно" in (updated.manager_comment or "").lower()
 
 
 def test_invalid_status_for_source_type(tmp_path: Path) -> None:

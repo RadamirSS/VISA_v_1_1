@@ -139,6 +139,7 @@ class AgencyDocumentStatus(StrEnum):
     PREPARING_BY_AGENCY = "preparing_by_agency"
     READY_FOR_CLIENT = "ready_for_client"
     SHARED_WITH_CLIENT = "shared_with_client"
+    TRANSFERRED_SEPARATELY = "transferred_separately"
     NOT_NEEDED = "not_needed"
 
 

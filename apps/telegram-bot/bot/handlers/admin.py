@@ -27,6 +27,7 @@ from bot.models import (
     AgencyDocumentStatus,
     BookingOrder,
     DocumentCategory,
+    DocumentSourceType,
     OrderStatus,
     PromoCode,
     PromoCodeType,
@@ -42,9 +43,11 @@ from bot.services.access import deny_admin_callback, deny_admin_message, is_admi
 from bot.services.access_keys import generate_access_key
 from bot.services.booking_provider import MockBookingProvider
 from bot.services.case_status import format_case_public_number
-from bot.services.document_status import document_status_label
+from bot.services.document_status import document_status_label, should_notify_client_for_agency_status
+from bot.services.document_storage import DocumentStorageService
 from bot.services.notifications import (
     build_agency_document_ready_message,
+    build_agency_document_transferred_separately_message,
     build_appointment_confirmed_message,
     build_documents_requested_message,
     build_slot_options_message,
@@ -64,6 +67,12 @@ access_key_repository = AccessKeyRepository(settings.database_url)
 support_request_repository = SupportRequestRepository(settings.database_url)
 miniapp_repository = MiniAppRepository(settings.database_url, repo_root=settings.repo_root)
 document_repository = DocumentRepository(settings.database_url)
+document_storage = DocumentStorageService(
+    repository=document_repository,
+    storage_dir=settings.document_storage_dir,
+    max_file_mb=settings.document_max_file_mb,
+    enabled=settings.document_uploads_enabled,
+)
 booking_provider = MockBookingProvider()
 
 
@@ -442,8 +451,26 @@ def _render_case_documents(case_id: str) -> str:
         return f"По кейсу {case_id} документов пока нет."
     lines = [f"Документы по кейсу {case_id}:"]
     for item in items:
-        lines.append(f"- {item.title}: {document_status_label(item)} ({item.source_type})")
+        has_file = document_repository.has_active_file(item.id)
+        lines.append(f"- {item.title}: {document_status_label(item, has_file=has_file)} ({item.source_type})")
     return "\n".join(lines)
+
+
+async def _notify_client_for_agency_document(
+    bot,
+    telegram_id: int,
+    *,
+    title: str,
+    status: str,
+    has_file: bool,
+) -> None:
+    if not should_notify_client_for_agency_status(status, has_file=has_file):
+        return
+    if status == AgencyDocumentStatus.TRANSFERRED_SEPARATELY.value:
+        message = build_agency_document_transferred_separately_message(title)
+    else:
+        message = build_agency_document_ready_message(title)
+    await bot.send_message(telegram_id, message)
 
 
 @router.message(F.text == "📎 Документы по заявке")
@@ -516,7 +543,7 @@ async def document_action_callback(callback: CallbackQuery, state: FSMContext) -
         await callback.message.answer(
             "Выберите документ для изменения статуса.",
             reply_markup=document_items_keyboard(
-                [(item.id, f"{item.title} ({document_status_label(item)})") for item in items],
+                [(item.id, f"{item.title} ({document_status_label(item, has_file=document_repository.has_active_file(item.id))})") for item in items],
                 "pickstatus",
             ),
         )
@@ -534,6 +561,25 @@ async def document_action_callback(callback: CallbackQuery, state: FSMContext) -
             reply_markup=document_items_keyboard(
                 [(item.id, item.title) for item in items],
                 "pickcomment",
+            ),
+        )
+        return
+
+    if action == "upload":
+        items = [
+            item
+            for item in document_repository.list_by_case(case_id)
+            if item.source_type == DocumentSourceType.AGENCY_PREPARED.value
+        ]
+        if not items:
+            await callback.answer("Нет документов агентства.", show_alert=True)
+            return
+        await callback.answer()
+        await callback.message.answer(
+            "Выберите документ агентства для загрузки файла.",
+            reply_markup=document_items_keyboard(
+                [(item.id, item.title) for item in items],
+                "pickupload",
             ),
         )
 
@@ -705,18 +751,124 @@ async def document_set_status_callback(callback: CallbackQuery, state: FSMContex
         await callback.answer("Сначала выберите документ.", show_alert=True)
         return
     try:
-        updated = document_repository.update_status(document_id, status, admin_id=callback.from_user.id)
+        if status == AgencyDocumentStatus.TRANSFERRED_SEPARATELY.value:
+            updated = document_repository.mark_transferred_separately(
+                document_id,
+                admin_id=callback.from_user.id,
+            )
+        else:
+            updated = document_repository.update_status(document_id, status, admin_id=callback.from_user.id)
     except ValueError as exc:
         await callback.answer(str(exc), show_alert=True)
         return
     await callback.answer("Статус обновлён.")
     if case_id:
         await callback.message.answer(_render_case_documents(case_id))
-    if telegram_id and updated.source_type == "agency_prepared" and status == AgencyDocumentStatus.READY_FOR_CLIENT.value:
-        await callback.message.bot.send_message(
+    if telegram_id and updated.source_type == DocumentSourceType.AGENCY_PREPARED.value:
+        has_file = document_repository.has_active_file(document_id)
+        await _notify_client_for_agency_document(
+            callback.message.bot,
             telegram_id,
-            build_agency_document_ready_message(updated.title),
+            title=updated.title,
+            status=status,
+            has_file=has_file,
         )
+
+
+@router.callback_query(F.data.startswith("doc:pickupload:"))
+async def document_pick_upload_callback(callback: CallbackQuery, state: FSMContext) -> None:
+    if not is_admin(callback.from_user.id, settings):
+        await _deny_callback(callback)
+        return
+    document_id = callback.data.split(":", 2)[2]
+    item = document_repository.get_by_id(document_id)
+    if item is None or item.source_type != DocumentSourceType.AGENCY_PREPARED.value:
+        await callback.answer("Документ не найден.", show_alert=True)
+        return
+    await state.update_data(document_id=document_id)
+    await state.set_state(AdminState.document_agency_upload_file)
+    await callback.answer()
+    await callback.message.answer(
+        f"Отправьте файл для «{item.title}».\n"
+        "Поддерживаются PDF, JPEG и PNG. Файл будет доступен клиенту в личном кабинете."
+    )
+
+
+@router.message(AdminState.document_agency_upload_file, F.document | F.photo)
+async def document_agency_upload_file_step(message: Message, state: FSMContext) -> None:
+    if not _require_admin(message):
+        await _deny(message)
+        return
+    data = await state.get_data()
+    document_id = data.get("document_id")
+    case_id = data.get("case_id")
+    telegram_id = data.get("telegram_id")
+    if not document_id or not case_id:
+        await message.answer("Сессия истекла. Начните снова через меню документов.")
+        await state.clear()
+        return
+
+    item = document_repository.get_for_case(case_id, document_id)
+    if item is None or item.source_type != DocumentSourceType.AGENCY_PREPARED.value:
+        await message.answer("Документ не найден.")
+        return
+
+    if message.document:
+        telegram_file_id = message.document.file_id
+        filename = message.document.file_name or "document.pdf"
+        mime_type = message.document.mime_type
+        size_bytes = message.document.file_size or 0
+    else:
+        photo = message.photo[-1]
+        telegram_file_id = photo.file_id
+        filename = "photo.jpg"
+        mime_type = "image/jpeg"
+        size_bytes = photo.file_size or 0
+
+    try:
+        file_info = await message.bot.get_file(telegram_file_id)
+        if file_info.file_path is None:
+            raise ValueError("Не удалось получить файл из Telegram.")
+        downloaded = await message.bot.download_file(file_info.file_path)
+        content = downloaded.read() if hasattr(downloaded, "read") else downloaded
+        document_storage.save_manager_agency_upload(
+            case_id=case_id,
+            document_item_id=document_id,
+            uploaded_by=f"admin:{message.from_user.id}",
+            filename=filename,
+            content_type=mime_type,
+            content=content,
+            applicant_id=item.applicant_id,
+        )
+        updated = document_repository.mark_agency_ready_after_upload(
+            document_id,
+            admin_id=message.from_user.id,
+        )
+    except ValueError as exc:
+        await message.answer(str(exc))
+        return
+    except Exception:
+        await message.answer("Не удалось сохранить файл. Попробуйте другой формат или файл меньшего размера.")
+        return
+
+    await state.set_state(AdminState.document_action)
+    await message.answer(_render_case_documents(case_id), reply_markup=document_actions_keyboard())
+    if telegram_id:
+        await _notify_client_for_agency_document(
+            message.bot,
+            telegram_id,
+            title=updated.title,
+            status=AgencyDocumentStatus.READY_FOR_CLIENT.value,
+            has_file=True,
+        )
+
+
+@router.message(AdminState.document_agency_upload_file)
+async def document_agency_upload_invalid_step(message: Message) -> None:
+    if not _require_admin(message):
+        await _deny(message)
+        return
+    await message.answer("Отправьте файл или фото документа агентства.")
 
 
 @router.callback_query(F.data.startswith("doc:pickcomment:"))

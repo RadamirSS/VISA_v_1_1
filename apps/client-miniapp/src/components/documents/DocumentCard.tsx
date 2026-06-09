@@ -11,6 +11,19 @@ type DocumentCardProps = {
   onUpdate: (document: DocumentItem) => void;
 };
 
+function agencyPlaceholder(document: DocumentItem): string {
+  if (document.transferred_separately) {
+    return "Документ будет передан менеджером отдельно.";
+  }
+  if (document.status === "preparing_by_agency" || document.status === "planned") {
+    return "Готовит агентство";
+  }
+  if (document.has_file) {
+    return "Документ будет доступен после передачи менеджером.";
+  }
+  return "Документ будет добавлен позже.";
+}
+
 export function DocumentCard({ document, onUpdate }: DocumentCardProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -78,9 +91,7 @@ export function DocumentCard({ document, onUpdate }: DocumentCardProps) {
               {loading ? "Открываем..." : "Скачать / открыть"}
             </button>
           ) : (
-            <p className="muted-text">
-              {document.has_file ? "Документ будет доступен после передачи менеджером." : "Документ будет добавлен позже."}
-            </p>
+            <p className="muted-text">{agencyPlaceholder(document)}</p>
           )}
         </>
       )}

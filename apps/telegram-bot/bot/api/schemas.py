@@ -301,6 +301,7 @@ class DocumentItemResponse(BaseModel):
     can_download: bool
     has_file: bool
     uploads_enabled: bool
+    transferred_separately: bool = False
 
 
 class DocumentsListResponse(BaseModel):

@@ -15,7 +15,11 @@ from bot.models import (
     DocumentItem,
     DocumentSourceType,
 )
-from bot.services.document_status import build_document_summary_counts, validate_status_for_source
+from bot.services.document_status import (
+    build_document_summary_counts,
+    validate_agency_ready_status,
+    validate_status_for_source,
+)
 from bot.services.document_templates import get_template, resolve_title
 
 
@@ -245,6 +249,8 @@ class DocumentRepository:
         if item is None:
             raise ValueError("Document not found")
         validate_status_for_source(item.source_type, status)
+        if item.source_type == DocumentSourceType.AGENCY_PREPARED.value:
+            validate_agency_ready_status(status=status, has_file=self.has_active_file(document_id))
         timestamp = now_iso()
         reviewed_by_admin_id = admin_id
         reviewed_at = timestamp if admin_id is not None else item.reviewed_at
@@ -472,6 +478,44 @@ class DocumentRepository:
                 (file_id, case_id, document_id),
             ).fetchone()
         return self._file_from_row(row) if row else None
+
+    def mark_agency_ready_after_upload(self, document_id: str, *, admin_id: int) -> DocumentItem:
+        item = self.get_by_id(document_id)
+        if item is None:
+            raise ValueError("Document not found")
+        if item.source_type != DocumentSourceType.AGENCY_PREPARED.value:
+            raise ValueError("Only agency-prepared documents can receive manager uploads")
+        if not self.has_active_file(document_id):
+            raise ValueError("Agency file metadata was not saved")
+        return self.update_status(document_id, AgencyDocumentStatus.READY_FOR_CLIENT.value, admin_id=admin_id)
+
+    def mark_transferred_separately(self, document_id: str, *, admin_id: int, comment: Optional[str] = None) -> DocumentItem:
+        item = self.get_by_id(document_id)
+        if item is None:
+            raise ValueError("Document not found")
+        if item.source_type != DocumentSourceType.AGENCY_PREPARED.value:
+            raise ValueError("Only agency-prepared documents can be marked as transferred separately")
+        timestamp = now_iso()
+        manager_comment = comment or "Документ будет передан менеджером отдельно."
+        with self._connect() as connection:
+            connection.execute(
+                """
+                UPDATE document_items
+                SET status = ?, manager_comment = ?, reviewed_by_admin_id = ?, reviewed_at = ?, updated_at = ?
+                WHERE id = ?
+                """,
+                (
+                    AgencyDocumentStatus.TRANSFERRED_SEPARATELY.value,
+                    manager_comment,
+                    admin_id,
+                    timestamp,
+                    timestamp,
+                    document_id,
+                ),
+            )
+        updated = self.get_by_id(document_id)
+        assert updated is not None
+        return updated
 
     def has_active_file(self, document_item_id: str) -> bool:
         return self.get_latest_active_file(document_item_id) is not None

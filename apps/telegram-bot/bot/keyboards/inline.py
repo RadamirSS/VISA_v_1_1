@@ -89,6 +89,7 @@ def document_actions_keyboard() -> InlineKeyboardMarkup:
             [InlineKeyboardButton(text="📋 Показать документы", callback_data="doc:action:list")],
             [InlineKeyboardButton(text="📥 Запросить у клиента", callback_data="doc:action:request")],
             [InlineKeyboardButton(text="🏢 Добавить документ агентства", callback_data="doc:action:agency")],
+            [InlineKeyboardButton(text="📤 Загрузить файл агентства", callback_data="doc:action:upload")],
             [InlineKeyboardButton(text="🔄 Изменить статус", callback_data="doc:action:status")],
             [InlineKeyboardButton(text="💬 Комментарий", callback_data="doc:action:comment")],
         ]
@@ -141,6 +142,7 @@ def document_status_keyboard(source_type: str) -> InlineKeyboardMarkup:
             (AgencyDocumentStatus.PREPARING_BY_AGENCY.value, "Готовит агентство"),
             (AgencyDocumentStatus.READY_FOR_CLIENT.value, "Готово"),
             (AgencyDocumentStatus.SHARED_WITH_CLIENT.value, "Передано клиенту"),
+            (AgencyDocumentStatus.TRANSFERRED_SEPARATELY.value, "Передан отдельно"),
             (AgencyDocumentStatus.NOT_NEEDED.value, "Не требуется"),
         ]
     return InlineKeyboardMarkup(

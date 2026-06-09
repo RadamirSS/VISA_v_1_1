@@ -43,8 +43,9 @@ Statuses:
 
 - `planned` → Запланировано
 - `preparing_by_agency` → Готовит агентство
-- `ready_for_client` → Готово
-- `shared_with_client` → Передано клиенту
+- `ready_for_client` → Готово (only when file exists)
+- `shared_with_client` → Передано клиенту (only when file exists)
+- `transferred_separately` → Документ будет передан менеджером отдельно
 - `not_needed` → Не требуется
 
 ## Manager flow (Telegram bot)
@@ -56,6 +57,7 @@ Menu action: **📎 Документы по заявке**
    - show documents for case
    - request client document from template
    - add agency-prepared item
+   - **upload agency file** (`📤 Загрузить файл агентства`)
    - change document status
    - leave manager comment
 3. After client request, bot notifies client with safe metadata only:
@@ -65,12 +67,18 @@ Menu action: **📎 Документы по заявке**
    Откройте личный кабинет → Документы.
    ```
 
-4. When agency document becomes `ready_for_client`, client receives:
+4. When agency document becomes `ready_for_client` **and has an uploaded file**, client receives:
 
    ```text
    Документ от агентства готов: <title>.
    Откройте личный кабинет → Документы.
    ```
+
+5. Manager can upload agency file through bot: select document → send PDF/JPEG/PNG. File is stored in backend storage and becomes available in Mini App download.
+
+6. **Ready-state guard:** `ready_for_client` and `shared_with_client` require an active uploaded file. Otherwise manager must choose **Передан отдельно** (`transferred_separately`).
+
+7. When marked `transferred_separately`, client sees: *Документ будет передан менеджером отдельно.* No false “готово” without file.
 
 Admin HTTP API is **not** exposed publicly in this MVP. Manager actions go through the existing bot handlers calling `DocumentRepository` directly.
 

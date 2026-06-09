@@ -53,7 +53,12 @@ from bot.services.case_status import (
     case_status_label,
     format_case_public_number,
 )
-from bot.services.document_status import can_client_download, can_client_upload, document_status_label
+from bot.services.document_status import (
+    can_client_download,
+    can_client_upload,
+    document_status_label,
+    is_transferred_separately,
+)
 from bot.services.document_storage import DocumentStorageService
 from bot.services.notifications import (
     build_agency_document_ready_message,
@@ -196,7 +201,7 @@ def _document_item_response(container: Container, item) -> DocumentItemResponse:
         title=item.title,
         description=item.description,
         status=item.status,
-        status_label=document_status_label(item),
+        status_label=document_status_label(item, has_file=has_file),
         required=item.required,
         manager_comment=item.manager_comment,
         client_comment=item.client_comment,
@@ -204,6 +209,7 @@ def _document_item_response(container: Container, item) -> DocumentItemResponse:
         can_download=can_client_download(item, has_file=has_file),
         has_file=has_file,
         uploads_enabled=container.document_storage.enabled,
+        transferred_separately=is_transferred_separately(item),
     )
 
 
